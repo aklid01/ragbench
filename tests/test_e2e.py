@@ -1,0 +1,218 @@
+"""End to end: a corpus goes in, a queryable set of artefacts comes out.
+
+The test drives the real command line entry point, so configuration
+resolution, ingestion, chunking and persistence are all exercised together.
+It writes its artefacts into a temporary project and checks them afterwards,
+which is the artefact the run can be reproduced from.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from conftest import write_pdf, write_text
+from ragbench.cli import main
+from ragbench.paths import ProjectPaths
+
+
+def _build_corpus(directory: Path) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    write_pdf(
+        directory / "report.pdf",
+        [
+            "The company targets net zero emissions by 2040.",
+            "Water consumption fell by 18 percent in 2021.",
+            "The board comprises seven independent directors.",
+        ],
+    )
+    write_text(
+        directory / "policy.md",
+        "# Supplier policy\n\nSuppliers must report Scope 2 emissions annually.\n",
+    )
+    write_text(
+        directory / "memo.txt",
+        "The 2021 audit found two minor control weaknesses in procurement.\n",
+    )
+
+
+def test_ingest_produces_a_complete_artefact_set(tmp_path: Path, capsys) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+
+    exit_code = main(
+        [
+            "--root",
+            str(root),
+            "ingest",
+            "--source",
+            str(corpus),
+            "--chunk-size",
+            "20",
+            "--overlap",
+            "4",
+        ]
+    )
+    assert exit_code == 0
+
+    paths = ProjectPaths(root=root)
+    manifest = json.loads((paths.extracted_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["document_count"] == 3
+    assert {entry["file_name"] for entry in manifest["documents"]} == {
+        "report.pdf",
+        "policy.md",
+        "memo.txt",
+    }
+
+    pdf_entry = next(e for e in manifest["documents"] if e["file_name"] == "report.pdf")
+    assert pdf_entry["page_count"] == 3
+    assert pdf_entry["extractor"] == "pymupdf"
+
+    chunk_files = sorted((paths.chunks_dir / "custom-20-4").glob("*.json"))
+    assert len(chunk_files) == 3
+    total_chunks = 0
+    for chunk_file in chunk_files:
+        payload = json.loads(chunk_file.read_text(encoding="utf-8"))
+        assert payload["chunk_count"] == len(payload["chunks"])
+        assert payload["chunks"]
+        total_chunks += payload["chunk_count"]
+        for chunk in payload["chunks"]:
+            assert chunk["text"].strip()
+            assert chunk["token_count"] <= 20
+            assert chunk["chunk_id"].startswith(payload["doc_id"])
+    assert total_chunks > 3
+
+    captured = capsys.readouterr()
+    assert "3 documents" in captured.out
+    assert "  failure:" not in captured.out
+
+
+def test_the_ingested_artefacts_answer_where_text_came_from(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+    assert (
+        main(
+            [
+                "--root",
+                str(root),
+                "ingest",
+                "--source",
+                str(corpus),
+                "--chunk-size",
+                "20",
+                "--overlap",
+                "4",
+            ]
+        )
+        == 0
+    )
+
+    paths = ProjectPaths(root=root)
+    payload = json.loads(
+        (paths.chunks_dir / "custom-20-4" / f"{_pdf_doc_id(paths)}.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    joined = " ".join(chunk["text"] for chunk in payload["chunks"])
+    assert "net zero emissions by 2040" in joined
+    assert "Water consumption fell by 18 percent" in joined
+    assert "seven independent directors" in joined
+    starts = {chunk["page_start"] for chunk in payload["chunks"]}
+    assert starts <= {1, 2, 3}
+    assert payload["chunks"][-1]["page_end"] == 3
+
+
+def test_running_the_pipeline_twice_changes_nothing(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+    arguments = [
+        "--root",
+        str(root),
+        "ingest",
+        "--source",
+        str(corpus),
+        "--chunk-size",
+        "20",
+        "--overlap",
+        "4",
+    ]
+    assert main(arguments) == 0
+    first = _chunk_content(ProjectPaths(root=root))
+    assert main(arguments) == 0
+    second = _chunk_content(ProjectPaths(root=root))
+    assert first == second
+
+
+def test_inspect_commands_report_the_state(tmp_path: Path, capsys) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+    assert (
+        main(
+            [
+                "--root",
+                str(root),
+                "ingest",
+                "--source",
+                str(corpus),
+                "--chunk-size",
+                "20",
+                "--overlap",
+                "4",
+            ]
+        )
+        == 0
+    )
+
+    assert main(["--root", str(root), "inspect", "documents"]) == 0
+    listed = capsys.readouterr().out
+    assert "report.pdf" in listed
+
+    assert (
+        main(
+            [
+                "--root",
+                str(root),
+                "inspect",
+                "chunks",
+                "--doc-id",
+                _pdf_doc_id(ProjectPaths(root=root)),
+            ]
+        )
+        == 0
+    )
+    inspected = capsys.readouterr().out
+    assert "#c0000" in inspected
+    assert "page" in inspected
+
+
+def _pdf_doc_id(paths: ProjectPaths) -> str:
+    manifest = json.loads((paths.extracted_dir / "manifest.json").read_text(encoding="utf-8"))
+    for entry in manifest["documents"]:
+        if entry["file_name"] == "report.pdf":
+            return entry["doc_id"]
+    raise AssertionError("report.pdf was not ingested")
+
+
+def _chunk_content(paths: ProjectPaths) -> dict[str, list[dict[str, object]]]:
+    """The chunk payloads without the ingestion timestamp, which changes per run."""
+    content: dict[str, list[dict[str, object]]] = {}
+    for path in sorted((paths.chunks_dir / "custom-20-4").glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for chunk in payload["chunks"]:
+            chunk["source"] = {
+                key: value for key, value in chunk["source"].items() if key != "ingested_at"
+            }
+        content[path.name] = payload["chunks"]
+    return content
