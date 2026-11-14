@@ -17,8 +17,11 @@ from .chunking.pipeline import chunk_documents
 from .chunking.spec import ChunkingSpec, get_preset, preset_names
 from .chunking.tokenizer import get_counter
 from .config import Settings, load_settings
-from .errors import RagBenchError
+from .embeddings import EmbeddingClient
+from .errors import RagBenchError, RetrievalError
 from .ingest.runner import run_ingest
+from .retrieval.indexer import index_chunks, latest_indexed_spec
+from .retrieval.search import search_chunks
 from .store import list_documents, load_chunks, read_manifest
 
 __all__ = ["build_parser", "main"]
@@ -83,6 +86,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     config = sub.add_parser("config", help="show the effective configuration")
     config.add_argument("--json", action="store_true", help="emit the configuration as JSON")
+
+    index = sub.add_parser("index", help="embed chunks and build the vector index")
+    index.add_argument(
+        "--spec",
+        default=None,
+        help="chunking configuration to index (default: the only one available)",
+    )
+    index.add_argument("--rebuild", action="store_true", help="drop the index and embed again")
+    index.add_argument("--json", action="store_true", help="emit the summary as JSON")
+
+    search = sub.add_parser("search", help="retrieve chunks for a query")
+    search.add_argument("query", help="the query text")
+    search.add_argument("--top-k", type=int, default=None, help="number of chunks to retrieve")
+    search.add_argument(
+        "--spec",
+        default=None,
+        help="chunking configuration to search (default: the most recently indexed)",
+    )
+    search.add_argument("--json", action="store_true", help="emit the results as JSON")
 
     return parser
 
@@ -207,6 +229,90 @@ def _cmd_config(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def _index_spec(args: argparse.Namespace, settings: Settings) -> str:
+    if args.spec:
+        return str(args.spec)
+    paths = settings.paths
+    candidates = sorted(path.name for path in paths.chunks_dir.glob("*") if path.is_dir())
+    if not candidates:
+        raise RetrievalError("no chunks found; run 'ragbench ingest' first")
+    derived = (
+        f"custom-{settings.chunking.chunk_size_tokens}-{settings.chunking.chunk_overlap_tokens}"
+    )
+    if derived in candidates:
+        return derived
+    if len(candidates) == 1:
+        return candidates[0]
+    raise RetrievalError(
+        f"several chunking configurations exist ({', '.join(candidates)}); choose one with --spec"
+    )
+
+
+def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
+    paths = settings.paths
+    spec_name = _index_spec(args, settings)
+    client = EmbeddingClient(settings.embedding)
+    try:
+        summary = index_chunks(paths, settings.embedding, client, spec_name, rebuild=args.rebuild)
+    finally:
+        client.close()
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "spec": summary.spec_name,
+                    "embedded": summary.embedded,
+                    "skipped": summary.skipped,
+                    "vector_count": summary.vector_count,
+                    "dimensions": summary.dimensions,
+                    "failures": summary.failures,
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(f"indexed: {summary.describe()}")
+        for failure in summary.failures:
+            print(f"  failure: {failure}")
+    return 0
+
+
+def _cmd_search(args: argparse.Namespace, settings: Settings) -> int:
+    paths = settings.paths
+    if not paths.index_dir.is_dir():
+        raise RetrievalError("no index has been built yet; run 'ragbench index' first")
+    spec_name = args.spec or latest_indexed_spec(paths)
+    if spec_name is None:
+        raise RetrievalError("no index has been built yet; run 'ragbench index' first")
+    top_k = args.top_k or settings.retrieval.top_k
+    client = EmbeddingClient(settings.embedding)
+    try:
+        results = search_chunks(paths, settings.embedding, client, spec_name, args.query, top_k)
+    finally:
+        client.close()
+
+    if args.json:
+        payload = {
+            "query": args.query,
+            "spec": spec_name,
+            "top_k": top_k,
+            "model": settings.embedding.model,
+            "results": [result.model_dump() for result in results],
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"query: {args.query}  (configuration {spec_name}, top {top_k})")
+        for result in results:
+            print(
+                f"{result.rank}. distance={result.distance:.4f}  {result.citation_label}  "
+                f"{result.chunk_id}"
+            )
+            excerpt = result.text[:160] + ("..." if len(result.text) > 160 else "")
+            print(f"    {excerpt}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -218,6 +324,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_inspect(args, settings)
         if args.command == "config":
             return _cmd_config(args, settings)
+        if args.command == "index":
+            return _cmd_index(args, settings)
+        if args.command == "search":
+            return _cmd_search(args, settings)
     except RagBenchError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
