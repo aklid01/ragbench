@@ -40,7 +40,7 @@ class EmbeddingError(RagBenchError):
 
 
 class RetrievalError(RagBenchError):
-    """Raised when the vector store cannot be queried."""
+    """Raised when the vector index cannot be built or queried."""
 
 
 class GenerationError(RagBenchError):
