@@ -1,28 +1,9 @@
-"""Text normalisation.
+"""Text normalisation for extracted text.
 
-Extracted text arrives dirty. A PDF page contains hard line breaks in the
-middle of paragraphs, soft hyphens from the typesetter, non breaking spaces
-typed by a designer and the occasional control character from the printer.
-Chunking that text directly would produce fragments in the wrong places and
-token counts that drift between runs.
-
-The rules applied here, in order:
-
-1. line endings become ``\\n``
-2. non breaking and other unicode spaces become a plain space
-3. soft hyphens are removed
-4. control characters other than newline and tab are dropped
-5. trailing whitespace is stripped from every line
-6. runs of horizontal whitespace collapse to a single space
-7. three or more blank lines collapse to two
-8. a word broken across a line by a hyphen is rejoined (``sustai-\\ntainable``
-   becomes ``sustainable``)
-
-Rule 8 is the only one that changes words rather than layout. It is applied
-only when the fragment after the hyphen starts with a lower case letter,
-because ``Anti-\\nInflation`` is a real hyphenated compound and joining it
-would corrupt the text. Every rule is a pure function of the input, so
-normalising twice gives the same result as normalising once.
+Layout noise is removed (line endings, unicode spaces, soft hyphens, control
+characters, whitespace runs) and a word broken across a line by a hyphen is
+rejoined when the fragment after the hyphen starts with a lower case letter.
+Every rule is idempotent.
 """
 
 from __future__ import annotations

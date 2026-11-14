@@ -1,17 +1,8 @@
 """Project layout.
 
-The workbench keeps five kinds of state apart from each other, because they
-have different lifetimes and different rules about what may be committed:
-
-``data/documents/``      the original files. Never modified, never committed.
-``data/extracted/``      extracted text per document, plus the ingest manifest.
-``data/chunks/``         chunk files, one directory per chunking configuration.
-``data/eval/``           the evaluation dataset. Hand written, versioned, committed.
-``artifacts/``           everything reproducible: the vector index, experiment
-                         runs, generated reports. Never committed.
-
-The root is the closest ancestor directory that contains a ``pyproject.toml``,
-so commands behave the same no matter which directory they run from.
+``data/`` holds documents, extracted text, chunks and the eval dataset;
+``artifacts/`` holds everything reproducible (index, experiment runs,
+reports). The root is the nearest ancestor holding a ``pyproject.toml``.
 """
 
 from __future__ import annotations

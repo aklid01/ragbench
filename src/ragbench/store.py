@@ -1,9 +1,7 @@
 """Persistence of extracted documents, chunk files and the ingest manifest.
 
 All reads and writes of the workbench's own artefacts go through this module,
-so the on-disk layout is described in exactly one place. Files are written as
-JSON, one document per file, named after the document id. The manifest is the
-index of those files and records the identity of every ingested document.
+so the on-disk layout is described in exactly one place.
 """
 
 from __future__ import annotations

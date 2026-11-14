@@ -1,10 +1,4 @@
-"""Error hierarchy for RAGBench.
-
-Every failure mode the package can raise has a named type. Callers (the CLI,
-the pipeline, the evaluator) can therefore distinguish a bad configuration
-from a failed API call from a broken document, instead of matching on
-exception strings.
-"""
+"""Error hierarchy: one named type per failure mode, so callers match on type."""
 
 from __future__ import annotations
 

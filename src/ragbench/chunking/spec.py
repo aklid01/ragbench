@@ -1,12 +1,8 @@
 """Chunking configurations.
 
-A chunking configuration is a name, a size, an overlap and a tokenizer. The
-three presets are the ones the experiment grid compares; a custom
-configuration is anything else with the same shape.
-
-Overlap is always a fraction of the size, which keeps the meaning of the
-setting stable when the size changes: a reader can compare "small" and
-"large" without having to remember two unrelated overlap numbers.
+A configuration is a name, a size, an overlap and a tokenizer. The presets
+are the ones the experiment grid compares; overlap is always a fraction of
+the size.
 """
 
 from __future__ import annotations

@@ -1,12 +1,7 @@
-"""Command line interface.
+"""Command line interface: one command per pipeline stage.
 
-One entry point, one command per stage of the pipeline, and nothing hidden.
-The commands are safe to run repeatedly: ingestion and chunking are
-idempotent, and every run overwrites its own output files.
-
-Errors are reported as ``error: <message>`` on stderr and the process exits
-with a non zero status. Credentials are never printed, not even when the
-configuration is shown.
+Errors are reported as ``error: <message>`` on stderr with a non zero exit
+status. Credentials are never printed.
 """
 
 from __future__ import annotations
@@ -95,10 +90,8 @@ def build_parser() -> argparse.ArgumentParser:
 def _chunking_spec(args: argparse.Namespace, settings: Settings) -> ChunkingSpec:
     """Pick the chunking configuration for this run.
 
-    The overlap follows the size. When only the size is given on the command
-    line the overlap becomes a tenth of it, which is the ratio the built in
-    presets use, so a smaller chunk does not end up with an overlap larger
-    than the chunk itself.
+    When only the size is given, the overlap defaults to a tenth of it so it
+    never exceeds the chunk.
     """
     if args.preset:
         return get_preset(args.preset)
