@@ -82,7 +82,7 @@ def run_ingest(
         except ExtractionError as exc:
             summary.failures.append(f"{discovered.path.name}: {exc}")
             continue
-        except Exception as exc:  # noqa: BLE001 - one bad file must not stop the run
+        except Exception as exc:
             summary.failures.append(f"{discovered.path.name}: unexpected error: {exc}")
             continue
 

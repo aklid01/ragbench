@@ -235,5 +235,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 2
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     raise SystemExit(main())

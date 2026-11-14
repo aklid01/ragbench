@@ -62,7 +62,7 @@ def extract_document(path: Path) -> ExtractionResult:
 def _extract_pdf(path: Path) -> ExtractionResult:
     try:
         import pymupdf
-    except ImportError as exc:  # pragma: no cover - dependency is declared
+    except ImportError as exc:
         raise ExtractionError("pymupdf is required to read PDF files") from exc
 
     result = ExtractionResult(extractor="pymupdf")
