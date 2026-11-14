@@ -9,21 +9,31 @@ Error handling: 408, 429 and every 5xx except 501 are retried; a ``Retry-After``
 header is honored when present so the client waits exactly as long as the
 server asks instead of guessing. Everything else fails immediately with an
 actionable message.
+
+Content safety screening (HTTP 422) rejects individual texts, so a rejecting
+batch is bisected down to the offending inputs: everything embeddable is
+embedded, the rejects are reported to the caller instead of failing the run.
 """
 
 from __future__ import annotations
 
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
 import httpx
 
 from ..config import EmbeddingConfig
-from ..errors import EmbeddingError
+from ..errors import EmbeddingContentError, EmbeddingError
 
-__all__ = ["MAX_RETRY_AFTER_SECONDS", "EmbeddingClient"]
+__all__ = [
+    "MAX_RETRY_AFTER_SECONDS",
+    "EmbeddingBatch",
+    "EmbeddingClient",
+    "RejectedInput",
+]
 
 MAX_RETRY_AFTER_SECONDS = 120.0
 
@@ -42,6 +52,23 @@ _REJECTION_HINTS = {
 
 def _now_utc() -> datetime:
     return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class RejectedInput:
+    """One text the endpoint refused to embed."""
+
+    index: int
+    text: str
+    message: str
+
+
+@dataclass
+class EmbeddingBatch:
+    """Vectors for the accepted inputs and the reasons for the rejected ones."""
+
+    vectors: list[list[float]] = field(default_factory=list)
+    rejected: list[RejectedInput] = field(default_factory=list)
 
 
 def _is_retryable(status: int) -> bool:
@@ -100,23 +127,43 @@ class EmbeddingClient:
     def close(self) -> None:
         self._client.close()
 
-    def embed_passages(self, texts: Sequence[str]) -> list[list[float]]:
-        """Embed document chunks, in batches of ``batch_size``."""
-        return self._embed(texts, self.config.passage_input_type)
+    def embed_passages(self, texts: Sequence[str]) -> EmbeddingBatch:
+        """Embed document chunks, in batches of ``batch_size``.
+
+        Inputs rejected by content safety screening are isolated by bisection
+        and reported in ``rejected``; the rest are embedded.
+        """
+        if not texts:
+            return EmbeddingBatch()
+        self._require_key()
+        batch = EmbeddingBatch()
+        for start in range(0, len(texts), self.config.batch_size):
+            chunk_texts = list(texts[start : start + self.config.batch_size])
+            self._embed_tolerant(chunk_texts, start, self.config.passage_input_type, batch)
+        return batch
 
     def embed_query(self, text: str) -> list[float]:
-        """Embed one query."""
-        return self._embed([text], self.config.query_input_type)[0]
-
-    def _embed(self, texts: Sequence[str], input_type: str | None) -> list[list[float]]:
-        if not texts:
-            return []
+        """Embed one query. A rejected query is fatal: there is nothing to retrieve with."""
         self._require_key()
-        vectors: list[list[float]] = []
-        for start in range(0, len(texts), self.config.batch_size):
-            batch = list(texts[start : start + self.config.batch_size])
-            vectors.extend(self._request(batch, input_type))
-        return vectors
+        return self._request([text], self.config.query_input_type)[0]
+
+    def _embed_tolerant(
+        self,
+        texts: list[str],
+        offset: int,
+        input_type: str | None,
+        batch: EmbeddingBatch,
+    ) -> None:
+        try:
+            batch.vectors.extend(self._request(texts, input_type))
+            return
+        except EmbeddingContentError as exc:
+            if len(texts) == 1:
+                batch.rejected.append(RejectedInput(offset, texts[0], str(exc)))
+                return
+            middle = len(texts) // 2
+            self._embed_tolerant(texts[:middle], offset, input_type, batch)
+            self._embed_tolerant(texts[middle:], offset + middle, input_type, batch)
 
     def _require_key(self) -> None:
         if self.config.api_key is None:
@@ -156,9 +203,15 @@ class EmbeddingClient:
                 if response.status_code == 200:
                     return self._parse(response, len(batch))
                 if not _is_retryable(response.status_code):
-                    raise EmbeddingError(
-                        self._rejection_message(response.status_code, response.text)
-                    )
+                    body = response.text
+                    lowered = body.lower()
+                    if response.status_code == 422 and (
+                        "content safety" in lowered or "screening" in lowered
+                    ):
+                        raise EmbeddingContentError(
+                            f"input rejected by content safety screening (HTTP 422): {body[:200]}"
+                        )
+                    raise EmbeddingError(self._rejection_message(response.status_code, body))
                 last_error = f"HTTP {response.status_code} from the embedding endpoint"
                 if attempt < self.config.max_retries:
                     self._sleep(self._retry_delay(response, attempt))

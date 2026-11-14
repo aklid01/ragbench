@@ -64,6 +64,16 @@ class VectorIndex:
     def count(self) -> int:
         return self._collection.count()
 
+    def dimensions(self) -> int:
+        """The dimension of the stored vectors, 0 when the index is empty."""
+        if self._collection.count() == 0:
+            return 0
+        stored = self._collection.get(limit=1, include=["embeddings"])
+        embeddings = stored.get("embeddings")
+        if embeddings is None or len(embeddings) == 0:
+            return 0
+        return int(len(embeddings[0]))
+
     def existing_ids(self) -> set[str]:
         if self._collection.count() == 0:
             return set()

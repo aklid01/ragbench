@@ -14,6 +14,7 @@ from ragbench.chunking.chunker import chunk_document
 from ragbench.chunking.spec import ChunkingSpec
 from ragbench.chunking.tokenizer import get_counter
 from ragbench.config import EmbeddingConfig
+from ragbench.embeddings import EmbeddingBatch, RejectedInput
 from ragbench.errors import RetrievalError
 from ragbench.retrieval import VectorIndex, index_chunks, latest_indexed_spec, read_index_manifest
 from ragbench.retrieval.search import search_chunks
@@ -34,13 +35,22 @@ def make_embedding_config(model: str = "test-embed", dimensions: int = DIMENSION
 class FakeEmbedder:
     """Counts text and query embeddings without touching a network."""
 
-    def __init__(self) -> None:
+    def __init__(self, reject: set[str] | None = None) -> None:
         self.embedded_texts: list[str] = []
         self.queries: list[str] = []
+        self.reject = reject or set()
 
-    def embed_passages(self, texts: list[str]) -> list[list[float]]:
+    def embed_passages(self, texts: list[str]) -> EmbeddingBatch:
         self.embedded_texts.extend(texts)
-        return [hash_embedding(text, DIMENSIONS) for text in texts]
+        batch = EmbeddingBatch()
+        for position, text in enumerate(texts):
+            if text in self.reject:
+                batch.rejected.append(
+                    RejectedInput(position, text, "input rejected by content safety screening")
+                )
+            else:
+                batch.vectors.append(hash_embedding(text, DIMENSIONS))
+        return batch
 
     def embed_query(self, text: str) -> list[float]:
         self.queries.append(text)
@@ -234,3 +244,33 @@ def test_two_configurations_get_separate_indexes(paths) -> None:
         paths, make_embedding_config(), FakeEmbedder(), "spec-a", "solar panels", 5
     )
     assert all(result.doc_id.startswith("report-") for result in results_a)
+
+
+def test_rejected_chunks_are_reported_and_not_indexed(paths) -> None:
+    chunked_document(
+        paths,
+        ["Solar panels and inverters convert sunlight into electricity on the factory roof."],
+        doc_id="doc-a",
+        file_name="solar.pdf",
+    )
+    chunked_document(
+        paths,
+        ["Wind turbines spin in the harbour and feed the grid all winter long."],
+        doc_id="doc-b",
+        file_name="wind.pdf",
+    )
+    embedder = FakeEmbedder(reject={"Wind turbines spin in the harbour and feed the grid all winter long."})
+    summary = index_chunks(paths, make_embedding_config(), embedder, "test-30-5")
+
+    assert summary.embedded == 1
+    assert summary.rejected == 1
+    assert summary.warnings and "content safety" in summary.warnings[0]
+    assert summary.vector_count == 1
+
+    manifest = read_index_manifest(paths, "test-30-5")
+    assert manifest["rejected"] == 1
+
+    results = search_chunks(
+        paths, make_embedding_config(), FakeEmbedder(), "test-30-5", "wind turbines", 5
+    )
+    assert all("wind" not in result.text.lower() for result in results)

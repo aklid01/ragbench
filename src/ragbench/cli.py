@@ -264,15 +264,19 @@ def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
                     "spec": summary.spec_name,
                     "embedded": summary.embedded,
                     "skipped": summary.skipped,
+                    "rejected": summary.rejected,
                     "vector_count": summary.vector_count,
                     "dimensions": summary.dimensions,
                     "failures": summary.failures,
+                    "warnings": summary.warnings,
                 },
                 indent=2,
             )
         )
     else:
         print(f"indexed: {summary.describe()}")
+        for warning in summary.warnings:
+            print(f"  warning: {warning}")
         for failure in summary.failures:
             print(f"  failure: {failure}")
     return 0

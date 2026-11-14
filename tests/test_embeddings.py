@@ -62,7 +62,7 @@ def test_batches_are_split_and_order_preserved() -> None:
         )
 
     client = EmbeddingClient(make_config(), transport=ok_transport(handler))
-    vectors = client.embed_passages(["a", "b", "c", "d", "e"])
+    vectors = client.embed_passages(["a", "b", "c", "d", "e"]).vectors
     assert seen_sizes == [2, 2, 1]
     assert len(vectors) == 5
     assert vectors[4] == [1.0, 0.0, 0.0, 0.0]
@@ -150,7 +150,8 @@ def test_empty_batch_makes_no_request() -> None:
         raise AssertionError("no request should be made")
 
     client = EmbeddingClient(make_config(), transport=ok_transport(handler))
-    assert client.embed_passages([]) == []
+    assert client.embed_passages([]).vectors == []
+    assert client.embed_passages([]).rejected == []
     client.close()
 
 
@@ -351,3 +352,79 @@ def test_transient_server_errors_are_retried() -> None:
         client.embed_query("hello")
         assert attempts["count"] == 3
         client.close()
+
+
+def screening_handler(reject_texts: set[str]):
+    """Return 422 content-safety for the marked texts, 200 otherwise."""
+    requests = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        requests["count"] += 1
+        inputs = json.loads(request.read())["input"]
+        if any(text in reject_texts for text in inputs):
+            return httpx.Response(
+                422,
+                json={"error": {"message": "input rejected by content safety screening"}},
+            )
+        vectors = [[1.0, 0.0, 0.0, 0.0]] * len(inputs)
+        return httpx.Response(
+            200,
+            json={"data": [{"index": i, "embedding": v} for i, v in enumerate(vectors)]},
+        )
+
+    return requests, handler
+
+
+def test_one_rejection_in_a_batch_is_isolated_by_bisection() -> None:
+    texts = ["fine one", "bad apple", "fine three", "fine four"]
+    requests, handler = screening_handler({"bad apple"})
+    client = EmbeddingClient(
+        make_config(batch_size=4), transport=ok_transport(handler)
+    )
+    result = client.embed_passages(texts)
+    assert len(result.vectors) == 3
+    assert len(result.rejected) == 1
+    assert result.rejected[0].index == 1
+    assert result.rejected[0].text == "bad apple"
+    assert "content safety" in result.rejected[0].message
+    assert requests["count"] == 5
+    client.close()
+
+
+def test_several_rejections_in_one_batch_are_all_isolated() -> None:
+    texts = ["bad one", "fine", "bad two", "fine too", "bad three"]
+    requests, handler = screening_handler({"bad one", "bad two", "bad three"})
+    client = EmbeddingClient(
+        make_config(batch_size=8), transport=ok_transport(handler)
+    )
+    result = client.embed_passages(texts)
+    assert [item.index for item in result.rejected] == [0, 2, 4]
+    assert {item.text for item in result.rejected} == {"bad one", "bad two", "bad three"}
+    assert len(result.vectors) == 2
+    client.close()
+
+
+def test_schema_422_fails_instead_of_isolating() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            422,
+            json={"error": {"message": "input_type must be one of 'query', 'passage'"}},
+        )
+
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler))
+    with pytest.raises(EmbeddingError) as excinfo:
+        client.embed_passages(["a", "b"])
+    assert "content safety" not in str(excinfo.value)
+    assert "unprocessable" in str(excinfo.value)
+    client.close()
+
+
+def test_rejected_query_is_fatal() -> None:
+    requests, handler = screening_handler({"bad question"})
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler))
+    with pytest.raises(EmbeddingError) as excinfo:
+        client.embed_query("bad question")
+    assert "content safety" in str(excinfo.value)
+    client.close()

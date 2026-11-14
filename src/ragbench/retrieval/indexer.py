@@ -31,15 +31,17 @@ class IndexSummary:
     spec_name: str
     embedded: int = 0
     skipped: int = 0
+    rejected: int = 0
     vector_count: int = 0
     dimensions: int = 0
     failures: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def describe(self) -> str:
         return (
             f"{self.vector_count} vectors for configuration {self.spec_name!r} "
             f"({self.embedded} embedded now, {self.skipped} already present, "
-            f"{self.dimensions} dimensions)"
+            f"{self.rejected} rejected, {self.dimensions} dimensions)"
         )
 
 
@@ -73,12 +75,19 @@ def index_chunks(
             else:
                 todo.append(chunk)
 
-    vectors = client.embed_passages([chunk.text for chunk in todo])
-    index.add(todo, vectors)
-    summary.embedded = len(todo)
+    batch = client.embed_passages([chunk.text for chunk in todo])
+    rejected_indexes = {item.index for item in batch.rejected}
+    accepted = [chunk for position, chunk in enumerate(todo) if position not in rejected_indexes]
+    index.add(accepted, batch.vectors)
+    summary.embedded = len(accepted)
+    summary.rejected = len(batch.rejected)
+    for item in batch.rejected:
+        summary.warnings.append(f"{todo[item.index].chunk_id} was not embedded: {item.message}")
 
     summary.vector_count = index.count()
-    summary.dimensions = embedding.expected_dimensions or (len(vectors[0]) if vectors else 0)
+    summary.dimensions = embedding.expected_dimensions or (
+        len(batch.vectors[0]) if batch.vectors else index.dimensions()
+    )
     _write_manifest(paths, summary, embedding.model)
     return summary
 
@@ -112,6 +121,7 @@ def _write_manifest(
         "vector_count": summary.vector_count,
         "embedded_now": summary.embedded,
         "already_present": summary.skipped,
+        "rejected": summary.rejected,
         "updated_at": datetime.now(UTC).isoformat(),
     }
     target = paths.index_dir / summary.spec_name / MANIFEST_NAME
