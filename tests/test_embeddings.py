@@ -228,3 +228,126 @@ def test_requests_are_spaced_according_to_the_rate_limit() -> None:
     client.embed_passages(["a", "b"])
     assert sleeps == [0.4]
     client.close()
+
+
+def retry_after_handler(status: int, headers: dict[str, str], succeed_on: int | None = None):
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts["count"] += 1
+        if succeed_on is not None and attempts["count"] >= succeed_on:
+            return httpx.Response(
+                200, json={"data": [{"index": 0, "embedding": [1.0, 0.0, 0.0, 0.0]}]}
+            )
+        return httpx.Response(status, headers=headers, request=request)
+
+    return attempts, handler
+
+
+def test_429_honors_retry_after_seconds() -> None:
+    attempts, handler = retry_after_handler(429, {"Retry-After": "7"}, succeed_on=3)
+    sleeps: list[float] = []
+    client = EmbeddingClient(
+        make_config(), transport=ok_transport(handler), sleep=sleeps.append
+    )
+    vectors = client.embed_query("hello")
+    assert vectors == [1.0, 0.0, 0.0, 0.0]
+    assert attempts["count"] == 3
+    assert sleeps == [7.0, 7.0]
+    client.close()
+
+
+def test_retry_after_http_date_is_honored(monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import UTC, datetime, timedelta
+    from email.utils import format_datetime
+
+    import ragbench.embeddings.client as client_module
+
+    frozen = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+    monkeypatch.setattr(client_module, "_now_utc", lambda: frozen)
+    retry_at = format_datetime(frozen + timedelta(seconds=9))
+
+    attempts, handler = retry_after_handler(503, {"Retry-After": retry_at}, succeed_on=2)
+    sleeps: list[float] = []
+    client = EmbeddingClient(
+        make_config(), transport=ok_transport(handler), sleep=sleeps.append
+    )
+    client.embed_query("hello")
+    assert sleeps == [9.0]
+    client.close()
+
+
+def test_retry_after_over_the_cap_fails_fast() -> None:
+    attempts, handler = retry_after_handler(429, {"Retry-After": "3600"})
+    sleeps: list[float] = []
+    client = EmbeddingClient(
+        make_config(), transport=ok_transport(handler), sleep=sleeps.append
+    )
+    with pytest.raises(EmbeddingError) as excinfo:
+        client.embed_query("hello")
+    assert "cap" in str(excinfo.value)
+    assert attempts["count"] == 1
+    assert sleeps == []
+    client.close()
+
+
+def test_malformed_retry_after_falls_back_to_backoff() -> None:
+    attempts, handler = retry_after_handler(429, {"Retry-After": "garbage"}, succeed_on=2)
+    sleeps: list[float] = []
+    client = EmbeddingClient(
+        make_config(), transport=ok_transport(handler), sleep=sleeps.append
+    )
+    client.embed_query("hello")
+    assert sleeps == [1.0]
+    client.close()
+
+
+def test_past_retry_after_date_waits_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import UTC, datetime, timedelta
+    from email.utils import format_datetime
+
+    import ragbench.embeddings.client as client_module
+
+    frozen = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+    past_date = format_datetime(frozen - timedelta(seconds=30))
+    monkeypatch.setattr(client_module, "_now_utc", lambda: frozen)
+
+    attempts, handler = retry_after_handler(429, {"Retry-After": past_date}, succeed_on=2)
+    sleeps: list[float] = []
+    client = EmbeddingClient(
+        make_config(), transport=ok_transport(handler), sleep=sleeps.append
+    )
+    client.embed_query("hello")
+    assert sleeps == [0.0]
+    client.close()
+
+
+def test_permanent_client_errors_fail_fast_with_hints() -> None:
+    expected = {
+        400: "payload was rejected",
+        401: "RAGBENCH_EMBEDDING_API_KEY",
+        403: "access denied",
+        404: "RAGBENCH_EMBEDDING_MODEL",
+        409: "conflict",
+        413: "RAGBENCH_EMBEDDING_BATCH_SIZE",
+        422: "unprocessable",
+        501: "does not implement",
+    }
+    for status, hint in expected.items():
+        attempts, handler = retry_after_handler(status, {})
+        client = EmbeddingClient(make_config(), transport=ok_transport(handler))
+        with pytest.raises(EmbeddingError) as excinfo:
+            client.embed_query("hello")
+        assert f"HTTP {status}" in str(excinfo.value)
+        assert hint in str(excinfo.value)
+        assert attempts["count"] == 1
+        client.close()
+
+
+def test_transient_server_errors_are_retried() -> None:
+    for status in (408, 500, 502, 503, 504):
+        attempts, handler = retry_after_handler(status, {}, succeed_on=3)
+        client = EmbeddingClient(make_config(), transport=ok_transport(handler))
+        client.embed_query("hello")
+        assert attempts["count"] == 3
+        client.close()
