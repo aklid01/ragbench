@@ -1,20 +1,9 @@
 """Document discovery and duplicate detection.
 
-Discovery walks a directory and returns the files the workbench can read, in
-a stable order. Stability matters: the same directory must always produce the
-same document ids, otherwise chunk ids and citations would change between
-runs for no reason.
-
-Two kinds of duplicate are detected:
-
-* **byte duplicates** - the same file content under two names. Found here, by
-  hashing the file.
-* **content duplicates** - different files that hold the same text, for
-  example the same report saved as PDF and as extracted text. Found by the
-  runner, by hashing the normalised text after extraction.
-
-Neither is reported as an error. A duplicate is a fact about the corpus, and
-the ingest summary states which copy was kept and which were skipped.
+Discovery walks a directory in a stable order so the same input always
+yields the same document ids. Byte duplicates are found by hashing files;
+content duplicates (same text, different format) are found by the runner
+after extraction. Neither is an error: the summary states what was kept.
 """
 
 from __future__ import annotations

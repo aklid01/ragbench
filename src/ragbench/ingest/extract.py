@@ -1,13 +1,7 @@
-"""Text extraction for the three supported formats.
+"""Text extraction: PDF, plain text and markdown all become a list of pages.
 
-PDF, plain text and markdown end up as the same thing: a list of pages, each
-with its text and its page number. Everything downstream (chunking, indexing,
-citation) then has a single shape to reason about.
-
-Page numbers are real for PDFs and absent for text files. A markdown file is
-not paginated either, even though it may have headings, so it is treated the
-same way. The distinction is carried in the data model rather than faked with
-a page 1.
+Page numbers are real for PDFs and absent for text and markdown; the
+distinction is carried in the data model rather than faked with a page 1.
 """
 
 from __future__ import annotations

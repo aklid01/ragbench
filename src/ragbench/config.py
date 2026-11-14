@@ -1,24 +1,9 @@
 """Central configuration.
 
 Everything the workbench needs to reach an API, read a directory or size a
-chunk comes from one place: the ``Settings`` object built here. Nothing else
-in the package reads ``os.environ`` directly.
-
-The loader is deliberately hand written instead of pulling in a settings
-library. There are twenty settings, they come from two sources (the process
-environment and a ``.env`` file), and the precedence rule is worth being able
-to read in one screen. The ``.env`` file is parsed here rather than with
-``python-dotenv`` for the same reason.
-
-Precedence, strongest first:
-
-1. values passed to :func:`load_settings`
-2. real environment variables
-3. values from the ``.env`` file next to the project root
-4. the defaults in this module
-
-Secrets are held in :class:`pydantic.SecretStr`, so printing a settings
-object, a traceback or a log line can never leak a key.
+chunk comes from the ``Settings`` object built here. Precedence, strongest
+first: values passed to :func:`load_settings`, real environment variables,
+the ``.env`` file next to the project root, the defaults in this module.
 """
 
 from __future__ import annotations
@@ -104,10 +89,9 @@ class _BaseProviderConfig(BaseModel):
 class EmbeddingConfig(_BaseProviderConfig):
     """Settings for the embedding client.
 
-    Asymmetric models (for example ``nvidia/nemotron-3.5-embed-8b``) encode a
-    question and a passage differently and insist on being told which one
-    they are looking at. Symmetric models ignore the hint entirely, so the
-    two input types are optional and are only sent when set.
+    The two input types are optional and are only sent when set, for
+    asymmetric models that require being told whether the input is a query
+    or a passage.
     """
 
     query_input_type: str | None = None
@@ -125,13 +109,7 @@ class LLMConfig(_BaseProviderConfig):
 
 
 class ChunkingConfig(BaseModel):
-    """Defaults for the chunker.
-
-    Sizes are counted in tokens, never in characters. ``cl100k_base`` is the
-    tokenizer OpenAI compatible models are measured with; for a different
-    provider it is an approximation, which is why the encoding name is part
-    of the configuration and is written into every chunk file.
-    """
+    """Defaults for the chunker. Sizes are counted in tokens, never characters."""
 
     chunk_size_tokens: int = Field(default=800, gt=0)
     chunk_overlap_tokens: int = Field(default=80, ge=0)
@@ -263,7 +241,7 @@ def load_settings(
                 timeout_seconds=_number(merged, "EMBEDDING_TIMEOUT_SECONDS", 60.0),
                 max_retries=_integer(merged, "EMBEDDING_MAX_RETRIES", 4),
                 query_input_type=_text(merged, "EMBEDDING_QUERY_INPUT_TYPE"),
-                passage_input_type=_text(merged, "EMBEDDING_Passage_INPUT_TYPE"),
+                passage_input_type=_text(merged, "EMBEDDING_PASSAGE_INPUT_TYPE"),
                 expected_dimensions=_integer(merged, "EMBEDDING_DIMENSIONS"),
                 batch_size=_integer(merged, "EMBEDDING_BATCH_SIZE", 16),
                 requests_per_minute=_number(merged, "REQUESTS_PER_MINUTE", 30.0),

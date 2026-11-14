@@ -1,37 +1,11 @@
 """Token window chunking.
 
-How a document becomes chunks
------------------------------
-1. The page texts are joined with a blank line. While joining, a map from
-   character offset to page number is built, so every character in the
-   document knows which page it came from. Pages that carry no text are
-   skipped but the page numbers of their neighbours are left untouched.
-2. The joined text is tokenised once, as a whole.
-3. A window of ``chunk_size_tokens`` tokens slides over the token stream
-   with a step of ``chunk_size_tokens - chunk_overlap_tokens``. Two
-   consecutive windows therefore share exactly ``chunk_overlap_tokens``
-   tokens, which is what keeps a sentence that straddles a boundary
-   retrievable from both sides.
-4. Each window is decoded back to text and located in the joined text, which
-   recovers the exact character offsets and, through the offset map, the exact
-   page range of the chunk.
-5. Leading and trailing whitespace is trimmed from the stored text and the
-   offsets are moved with it, so the stored text is always exactly the
-   document text between ``char_start`` and ``char_end``.
-6. A window that holds nothing but whitespace produces no chunk, so no empty
-   chunk is ever stored.
-
-What this means in practice
----------------------------
-* The chunk size is a hard cap on the token stream, and the reported
-  ``token_count`` is the number of tokens of the text that is actually
-  stored.
-* A chunk may begin or end in the middle of a word, because tokens are the
-  unit of measurement. That is the honest consequence of measuring in
-  tokens, and it keeps the size and the overlap exact.
-* Identical input and identical configuration always produce identical
-  chunk ids, text and offsets, because nothing in the algorithm depends on
-  the clock or on dictionary iteration order.
+Pages are joined with a page offset map, the joined text is tokenised once,
+and a window of ``chunk_size_tokens`` slides over it with a step of
+``size - overlap``, so consecutive chunks share exactly the overlap. Windows
+are decoded back to text, located by offset and trimmed, giving exact
+character and page provenance. Whitespace-only windows produce no chunk and
+identical input always produces identical chunk ids and offsets.
 """
 
 from __future__ import annotations

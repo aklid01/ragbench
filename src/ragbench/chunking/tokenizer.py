@@ -1,11 +1,7 @@
 """Token counting.
 
-Chunk sizes are counted in tokens, so the workbench needs a tokenizer it can
-name. ``cl100k_base`` is the encoding OpenAI compatible models are measured
-with; it is the default, and it is recorded in every chunk file so a run can
-be reproduced later.
-
-The counter is a small protocol rather than a concrete class, so a different
+``cl100k_base`` is the default encoding and is recorded in every chunk file
+so a run can be reproduced later. The counter is a protocol, so a different
 tokenizer can be plugged in without touching the chunker.
 """
 

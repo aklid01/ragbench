@@ -1,10 +1,4 @@
-"""Chunking pipeline.
-
-Reads the extracted documents, cuts them with one configuration and writes
-the chunks to ``data/chunks/<configuration>/<document>.json``. Each
-configuration gets its own directory, so the chunk sizes can be compared
-later without re-running the chunker.
-"""
+"""Chunking pipeline: cut extracted documents and write one directory per configuration."""
 
 from __future__ import annotations
 

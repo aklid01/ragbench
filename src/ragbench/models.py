@@ -1,15 +1,9 @@
 """Core data models.
 
-Three things flow through the pipeline: a source file, the pages extracted
-from it, and the chunks cut out of those pages. Every one of them carries the
-provenance needed to answer "where did this come from", because a RAG system
-that cannot name its source cannot be checked.
-
-Page numbers are optional on purpose. A PDF has real pages; a plain text file
-has one continuous stream that was never paginated. Claiming ``page 1`` for a
-text file would be a small lie that later has to be explained in every
-citation, so ``None`` means "this format has no pages" and the citation layer
-renders it as unavailable.
+Every model carries the provenance needed to answer "where did this come
+from". ``page_number`` is ``None`` for formats without pages (text, markdown)
+rather than faked with a page 1, and the citation layer renders it as
+unavailable.
 """
 
 from __future__ import annotations
@@ -43,11 +37,7 @@ def content_hash(text: str) -> str:
 
 
 def doc_id_for(file_name: str, sha256: str) -> str:
-    """Build a readable, collision resistant document id.
-
-    The slug keeps the identifier legible in logs and citations, the digest
-    suffix keeps two files with the same name apart.
-    """
+    """Build a readable document id: name slug plus digest suffix."""
     stem = Path(file_name).stem.lower()
     slug = _SLUG_PATTERN.sub("-", stem).strip("-") or "document"
     return f"{slug}-{sha256[:8]}"
@@ -68,13 +58,7 @@ class SourceRef(BaseModel):
 
 
 class Page(BaseModel):
-    """One page of extracted text.
-
-    ``page_number`` is 1-based for paginated formats and ``None`` otherwise.
-    ``text`` is stored after normalisation, so an empty page means the page
-    really had no extractable text (a cover image, a divider) rather than that
-    the extractor failed.
-    """
+    """One page of extracted text. Empty text means the page had nothing extractable."""
 
     page_number: int | None
     text: str

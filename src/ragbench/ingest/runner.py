@@ -1,14 +1,8 @@
-"""Ingestion pipeline.
+"""Ingestion pipeline: discovery, extraction, duplicate detection, persistence.
 
-Discovery, extraction, duplicate detection and persistence, in that order.
-The pipeline is defensive by design: a single unreadable file must not stop
-a run, and an empty document must not produce a silent success. Both end up
-in the summary, which is the only place the caller has to look to learn what
-actually happened.
-
-Ingestion is idempotent. Running it twice over the same directory produces
-the same document ids and the same files, because the ids are derived from
-the file content rather than from the clock.
+A single unreadable file must not stop a run and an empty document must not
+produce a silent success; both end up in the summary. Ids derive from file
+content, so ingestion is idempotent.
 """
 
 from __future__ import annotations
