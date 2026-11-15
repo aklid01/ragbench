@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, computed_field
 from ..config import EmbeddingConfig
 from ..embeddings import EmbeddingClient
 from ..errors import RetrievalError
+from ..models import citation_label_for
 from ..paths import ProjectPaths
 from .indexer import read_index_manifest
 from .store import PAGE_UNAVAILABLE, VectorIndex
@@ -30,11 +31,7 @@ class RetrievedChunk(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def citation_label(self) -> str:
-        if self.page_start is None:
-            return f"{self.file_name} (page unavailable)"
-        if self.page_start == self.page_end:
-            return f"{self.file_name} (page {self.page_start})"
-        return f"{self.file_name} (pages {self.page_start}-{self.page_end})"
+        return citation_label_for(self.file_name, self.page_start, self.page_end)
 
 
 def search_chunks(
