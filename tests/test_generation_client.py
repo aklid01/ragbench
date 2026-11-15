@@ -272,7 +272,7 @@ def test_transient_server_errors_are_retried() -> None:
 
 def test_malformed_response_body_is_rejected() -> None:
     for body in ({}, {"choices": []}, {"choices": [{"message": {}}]}, {"choices": [{"message": {"content": 42}}]}):
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx.Request, body: object = body) -> httpx.Response:
             return httpx.Response(200, json=body, request=request)
 
         client = LLMClient(make_config(), transport=ok_transport(handler))

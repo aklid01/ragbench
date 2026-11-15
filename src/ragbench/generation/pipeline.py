@@ -9,8 +9,8 @@ phase will need, so downstream code never has to re-derive provenance.
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Sequence
 
 from pydantic import BaseModel, Field
 
