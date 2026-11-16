@@ -19,8 +19,8 @@ from ..errors import ExtractionError, IngestionError
 from ..models import ExtractedDocument, SourceRef, content_hash, doc_id_for
 from ..paths import ProjectPaths
 from ..store import MANIFEST_NAME, write_document, write_manifest
-from .discover import discover_documents
-from .extract import extract_document
+from .discover import DiscoveredFile, discover_documents
+from .extract import ExtractionResult, extract_document
 
 __all__ = ["IngestSummary", "run_ingest"]
 
@@ -83,60 +83,99 @@ def run_ingest(
         doc_id = doc_id_for(discovered.path.name, discovered.sha256)
         existing = None if force else _load_extracted(paths, doc_id)
         if existing is not None:
-            text_hash = content_hash(existing.pages[0].text if existing.pages else "")
-            if text_hash in seen_text_hashes:
-                summary.duplicates.append(
-                    f"{discovered.path.name} holds the same text as {seen_text_hashes[text_hash]}"
-                )
-                continue
-            seen_text_hashes.setdefault(text_hash, discovered.path.name)
-            summary.unchanged.append(doc_id)
+            _reuse_extracted(existing, discovered, seen_text_hashes, summary)
             continue
-
-        try:
-            extraction = extract_document(discovered.path)
-        except ExtractionError as exc:
-            summary.failures.append(f"{discovered.path.name}: {exc}")
+        extraction = _extract_discovered(discovered, summary)
+        if extraction is None:
             continue
-        except Exception as exc:
-            summary.failures.append(f"{discovered.path.name}: unexpected error: {exc}")
-            continue
-
-        text_hash = content_hash(extraction.pages[0].text if extraction.pages else "")
-        if text_hash in seen_text_hashes and not force:
-            summary.duplicates.append(
-                f"{discovered.path.name} holds the same text as {seen_text_hashes[text_hash]}"
-            )
-            continue
-        seen_text_hashes.setdefault(text_hash, discovered.path.name)
-
-        document = ExtractedDocument(
-            doc_id=doc_id,
-            title=extraction.title or discovered.path.stem,
-            source=SourceRef(
-                path=str(discovered.path),
-                file_name=discovered.path.name,
-                sha256=discovered.sha256,
-                media_type=discovered.media_type,
-                byte_size=discovered.byte_size,
-                ingested_at=datetime.now(UTC),
-            ),
-            pages=extraction.pages,
-            extractor=extraction.extractor,
-            warnings=extraction.warnings,
+        _persist_extracted(
+            paths,
+            discovered,
+            extraction,
+            doc_id,
+            force=force,
+            seen=seen_text_hashes,
+            summary=summary,
         )
-
-        if document.char_count == 0:
-            summary.warnings.append(f"{document.source.file_name} contains no extractable text")
-
-        write_document(paths, document)
-        summary.documents.append(document.doc_id)
-        summary.page_count += document.page_count
-        summary.char_count += document.char_count
-        summary.warnings.extend(document.warnings)
 
     _reconcile_corpus(paths, source_dir, discovered_by_path, summary)
     return summary
+
+
+def _reuse_extracted(
+    existing: ExtractedDocument,
+    discovered: DiscoveredFile,
+    seen_text_hashes: dict[str, str],
+    summary: IngestSummary,
+) -> None:
+    """Record an already extracted file as unchanged or as a text duplicate."""
+    doc_id = doc_id_for(discovered.path.name, discovered.sha256)
+    text_hash = content_hash(existing.pages[0].text if existing.pages else "")
+    if text_hash in seen_text_hashes:
+        summary.duplicates.append(
+            f"{discovered.path.name} holds the same text as {seen_text_hashes[text_hash]}"
+        )
+        return
+    seen_text_hashes.setdefault(text_hash, discovered.path.name)
+    summary.unchanged.append(doc_id)
+
+
+def _extract_discovered(
+    discovered: DiscoveredFile, summary: IngestSummary
+) -> ExtractionResult | None:
+    """Extract one file; a failure is recorded and yields None, never an exception."""
+    try:
+        return extract_document(discovered.path)
+    except ExtractionError as exc:
+        summary.failures.append(f"{discovered.path.name}: {exc}")
+    except Exception as exc:
+        summary.failures.append(f"{discovered.path.name}: unexpected error: {exc}")
+    return None
+
+
+def _persist_extracted(
+    paths: ProjectPaths,
+    discovered: DiscoveredFile,
+    extraction: ExtractionResult,
+    doc_id: str,
+    *,
+    force: bool,
+    seen: dict[str, str],
+    summary: IngestSummary,
+) -> None:
+    """Dedup, build and write the extracted document, updating the summary."""
+    text_hash = content_hash(extraction.pages[0].text if extraction.pages else "")
+    if text_hash in seen and not force:
+        summary.duplicates.append(
+            f"{discovered.path.name} holds the same text as {seen[text_hash]}"
+        )
+        return
+    seen.setdefault(text_hash, discovered.path.name)
+
+    document = ExtractedDocument(
+        doc_id=doc_id,
+        title=extraction.title or discovered.path.stem,
+        source=SourceRef(
+            path=str(discovered.path),
+            file_name=discovered.path.name,
+            sha256=discovered.sha256,
+            media_type=discovered.media_type,
+            byte_size=discovered.byte_size,
+            ingested_at=datetime.now(UTC),
+        ),
+        pages=extraction.pages,
+        extractor=extraction.extractor,
+        warnings=extraction.warnings,
+    )
+
+    if document.char_count == 0:
+        summary.warnings.append(f"{document.source.file_name} contains no extractable text")
+
+    write_document(paths, document)
+    summary.documents.append(document.doc_id)
+    summary.page_count += document.page_count
+    summary.char_count += document.char_count
+    summary.warnings.extend(document.warnings)
 
 
 def _load_extracted(paths: ProjectPaths, doc_id: str) -> ExtractedDocument | None:
