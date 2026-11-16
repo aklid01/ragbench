@@ -2,23 +2,8 @@
 
 from __future__ import annotations
 
+from conftest import make_chunk
 from ragbench.generation import ABSTENTION_MARKER, build_answer_prompt, detect_abstention
-from ragbench.retrieval.search import RetrievedChunk
-
-
-def make_chunk(rank: int, file_name: str, page_start: int | None, text: str) -> RetrievedChunk:
-    page_end = page_start
-    return RetrievedChunk(
-        rank=rank,
-        chunk_id=f"{file_name}-chunk-{rank}",
-        doc_id=f"{file_name}-doc",
-        file_name=file_name,
-        page_start=page_start,
-        page_end=page_end,
-        text=text,
-        distance=0.2,
-        similarity=0.8,
-    )
 
 
 def test_prompt_numbers_passages_and_includes_the_question() -> None:
