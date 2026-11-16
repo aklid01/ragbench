@@ -24,6 +24,7 @@ __all__ = [
     "Chunk",
     "doc_id_for",
     "content_hash",
+    "citation_label_for",
 ]
 
 MediaType = Literal["pdf", "text", "markdown"]
@@ -96,6 +97,15 @@ class ExtractedDocument(BaseModel):
         return any(page.page_number is not None for page in self.pages)
 
 
+def citation_label_for(file_name: str, page_start: int | None, page_end: int | None) -> str:
+    """Human readable provenance shared by chunks, retrieved hits and citations."""
+    if page_start is None:
+        return f"{file_name} (page unavailable)"
+    if page_start == page_end:
+        return f"{file_name} (page {page_start})"
+    return f"{file_name} (pages {page_start}-{page_end})"
+
+
 class Chunk(BaseModel):
     """A retrievable slice of a document."""
 
@@ -114,8 +124,4 @@ class Chunk(BaseModel):
     @property
     def citation_label(self) -> str:
         """Human readable provenance, used by the citation layer."""
-        if self.page_start is None:
-            return f"{self.source.file_name} (page unavailable)"
-        if self.page_start == self.page_end:
-            return f"{self.source.file_name} (page {self.page_start})"
-        return f"{self.source.file_name} (pages {self.page_start}-{self.page_end})"
+        return citation_label_for(self.source.file_name, self.page_start, self.page_end)

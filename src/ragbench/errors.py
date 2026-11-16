@@ -39,8 +39,12 @@ class EmbeddingError(RagBenchError):
     """Raised when an embedding request fails or returns an invalid vector."""
 
 
+class EmbeddingContentError(EmbeddingError):
+    """Raised when the endpoint's content safety screening rejects an input."""
+
+
 class RetrievalError(RagBenchError):
-    """Raised when the vector store cannot be queried."""
+    """Raised when the vector index cannot be built or queried."""
 
 
 class GenerationError(RagBenchError):
