@@ -642,11 +642,12 @@ def _cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
     print("-" * len(header))
     for row in rows:
         recall = row["retrieval"]["recall"]
+        mrr = row["retrieval"]["mrr"]
         f1 = row["generation"]["token_f1_mean"]
         abstain = row["generation"]["abstention_rate_unanswerable"]
         print(
-            f"{row['run_id']:<28} {recall.get(3, 0):>8.2f} {recall.get(5, 0):>8.2f} "
-            f"{recall.get(8, 0):>8.2f} {row['retrieval']['mrr'].get(5, 0):>7.2f} "
+            f"{row['run_id']:<28} {recall.get('3', 0):>8.2f} {recall.get('5', 0):>8.2f} "
+            f"{recall.get('8', 0):>8.2f} {mrr.get('5', 0):>7.2f} "
             f"{'n/a' if f1 is None else f'{f1:.2f}':>6} "
             f"{'n/a' if abstain is None else f'{abstain:.2f}':>8}"
         )
