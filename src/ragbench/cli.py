@@ -297,11 +297,7 @@ def _cmd_inspect(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def _cmd_config(args: argparse.Namespace, settings: Settings) -> int:
-    redacted = settings.redacted()
-    if args.json:
-        print(json.dumps(redacted, indent=2))
-    else:
-        print(json.dumps(redacted, indent=2))
+    print(json.dumps(settings.redacted(), indent=2))
     return 0
 
 

@@ -57,13 +57,13 @@ def discover_documents(directory: Path) -> DiscoveryResult:
         raise FileNotFoundError(f"not a directory: {directory}")
 
     candidates = sorted(
-        path
+        (path, media_type)
         for path in directory.rglob("*")
-        if path.is_file() and detect_media_type(path) is not None
+        if path.is_file() and (media_type := detect_media_type(path)) is not None
     )
 
     seen: dict[str, DiscoveredFile] = {}
-    for path in candidates:
+    for path, media_type in candidates:
         relative = path.relative_to(directory)
         if _is_hidden(relative):
             result.skipped.append(f"{relative} (hidden)")
@@ -75,8 +75,6 @@ def discover_documents(directory: Path) -> DiscoveryResult:
                 f"{relative} is a byte for byte copy of {kept.path.relative_to(directory)}"
             )
             continue
-        media_type = detect_media_type(path)
-        assert media_type is not None
         discovered = DiscoveredFile(
             path=path,
             media_type=media_type,

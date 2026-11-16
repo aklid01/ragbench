@@ -22,6 +22,7 @@ from ..generation.citations import Citation
 from ..generation.client import LLMClient
 from ..generation.pipeline import AnsweredQuestion, answer_question
 from ..paths import ProjectPaths
+from ..store import write_json
 from .dataset import DATASET_VERSION, EvalCase, EvalDataset
 from .metrics import (
     compute_exact_match,
@@ -229,8 +230,7 @@ def write_run_file(paths: ProjectPaths, records: list[CaseRecord], summary: RunS
         "summary": summary.model_dump(mode="json"),
         "records": [record.model_dump(mode="json") for record in records],
     }
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    write_json(target, payload)
     return target
 
 

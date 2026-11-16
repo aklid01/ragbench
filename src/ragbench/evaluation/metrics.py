@@ -24,6 +24,7 @@ import statistics
 import unicodedata
 from collections.abc import Sequence
 
+from ..generation.citations import extract_references
 from .records import CaseRecord
 
 __all__ = [
@@ -112,8 +113,6 @@ def compute_faithfulness(answer: str, valid_references: set[int]) -> float:
     An answer with no sentences scores 0.0. A sentence citing only invalid
     references counts as unfaithful.
     """
-    from ..generation.citations import extract_references
-
     sentences = [
         sentence.strip() for sentence in _SENTENCE_BOUNDARY.split(answer) if sentence.strip()
     ]

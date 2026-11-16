@@ -7,6 +7,7 @@ so the on-disk layout is described in exactly one place.
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from .paths import ProjectPaths
 
 __all__ = [
     "MANIFEST_NAME",
+    "write_json",
     "write_document",
     "load_document",
     "list_documents",
@@ -28,15 +30,18 @@ __all__ = [
 MANIFEST_NAME = "manifest.json"
 
 
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Write JSON through a temp file and rename, so a crash cannot corrupt the target."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def write_document(paths: ProjectPaths, document: ExtractedDocument) -> Path:
     """Write one extracted document and return the file it landed in."""
     target = paths.extracted_dir / f"{document.doc_id}.json"
-    _write_json(target, document.model_dump(mode="json"))
+    write_json(target, document.model_dump(mode="json"))
     return target
 
 
@@ -79,7 +84,7 @@ def write_manifest(paths: ProjectPaths, documents: list[ExtractedDocument]) -> P
         ],
     }
     target = paths.extracted_dir / MANIFEST_NAME
-    _write_json(target, payload)
+    write_json(target, payload)
     return target
 
 
@@ -94,7 +99,7 @@ def read_manifest(paths: ProjectPaths) -> dict[str, Any]:
 def write_chunks(paths: ProjectPaths, spec_name: str, doc_id: str, chunks: list[Chunk]) -> Path:
     """Write the chunks of one document under one chunking configuration."""
     target = paths.chunks_dir / spec_name / f"{doc_id}.json"
-    _write_json(
+    write_json(
         target,
         {
             "spec": spec_name,

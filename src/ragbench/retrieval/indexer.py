@@ -17,12 +17,10 @@ from ..embeddings import EmbeddingClient
 from ..errors import RetrievalError
 from ..models import Chunk
 from ..paths import ProjectPaths
-from ..store import load_chunks
+from ..store import MANIFEST_NAME, load_chunks, write_json
 from .store import VectorIndex
 
 __all__ = ["IndexSummary", "index_chunks", "latest_indexed_spec", "read_index_manifest"]
-
-MANIFEST_NAME = "manifest.json"
 
 
 @dataclass
@@ -150,6 +148,4 @@ def _write_manifest(paths: ProjectPaths, summary: IndexSummary, embedding_model:
         "pruned": summary.pruned,
         "updated_at": datetime.now(UTC).isoformat(),
     }
-    target = paths.index_dir / summary.spec_name / MANIFEST_NAME
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    write_json(paths.index_dir / summary.spec_name / MANIFEST_NAME, payload)
