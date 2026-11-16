@@ -109,8 +109,10 @@ def test_ingest_is_idempotent(tmp_path: Path, paths) -> None:
     write_text(source / "notes.txt", "Plain notes about reporting.")
     first = run_ingest(paths, source)
     second = run_ingest(paths, source)
-    assert first.documents == second.documents
-    assert first.char_count == second.char_count
+    assert second.unchanged == first.documents
+    assert second.documents == []
+    assert second.retired == []
+    assert second.char_count == 0
 
 
 def test_unsupported_files_are_ignored(tmp_path: Path) -> None:

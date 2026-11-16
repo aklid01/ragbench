@@ -128,6 +128,99 @@ def test_the_ingested_artefacts_answer_where_text_came_from(tmp_path: Path) -> N
     assert payload["chunks"][-1]["page_end"] == 3
 
 
+def test_reingesting_an_edited_corpus_retires_the_old_document(tmp_path: Path, capsys) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+    arguments = [
+        "--root",
+        str(root),
+        "ingest",
+        "--source",
+        str(corpus),
+        "--chunk-size",
+        "20",
+        "--overlap",
+        "4",
+    ]
+    assert main(arguments) == 0
+
+    paths = ProjectPaths(root=root)
+    old_memo_id = _doc_id_for_file(paths, "memo.txt")
+    write_text(
+        corpus / "memo.txt",
+        "The 2022 audit found three major control weaknesses in procurement.\n",
+    )
+
+    assert main(arguments) == 0
+    output = capsys.readouterr().out
+    assert "retired:" in output
+    assert old_memo_id in output
+
+    manifest = json.loads((paths.extracted_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest["documents"]) == 3
+    assert old_memo_id not in {entry["doc_id"] for entry in manifest["documents"]}
+    assert not (paths.extracted_dir / f"{old_memo_id}.json").exists()
+    assert not (paths.chunks_dir / "custom-20-4" / f"{old_memo_id}.json").exists()
+    new_memo_id = _doc_id_for_file(paths, "memo.txt")
+    assert new_memo_id != old_memo_id
+    assert (paths.chunks_dir / "custom-20-4" / f"{new_memo_id}.json").is_file()
+
+
+def test_manifest_describes_the_whole_corpus_after_two_ingests(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus_a = tmp_path / "corpus_a"
+    corpus_b = tmp_path / "corpus_b"
+    corpus_a.mkdir()
+    corpus_b.mkdir()
+    write_text(corpus_a / "memo.txt", "The 2021 audit found two minor control weaknesses.\n")
+    write_text(corpus_b / "policy.md", "# Supplier policy\n\nSuppliers must report Scope 2.\n")
+
+    assert (
+        main(
+            [
+                "--root",
+                str(root),
+                "ingest",
+                "--source",
+                str(corpus_a),
+                "--chunk-size",
+                "20",
+                "--overlap",
+                "4",
+            ]
+        )
+        == 0
+    )
+    assert (
+        main(
+            [
+                "--root",
+                str(root),
+                "ingest",
+                "--source",
+                str(corpus_b),
+                "--chunk-size",
+                "20",
+                "--overlap",
+                "4",
+            ]
+        )
+        == 0
+    )
+
+    paths = ProjectPaths(root=root)
+    manifest = json.loads((paths.extracted_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["document_count"] == 2
+    assert {entry["file_name"] for entry in manifest["documents"]} == {"memo.txt", "policy.md"}
+    listed = sorted(path.stem for path in paths.extracted_dir.glob("*.json"))
+    assert listed == ["manifest", *sorted(entry["doc_id"] for entry in manifest["documents"])]
+
+
 def test_running_the_pipeline_twice_changes_nothing(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
@@ -203,6 +296,14 @@ def _pdf_doc_id(paths: ProjectPaths) -> str:
         if entry["file_name"] == "report.pdf":
             return entry["doc_id"]
     raise AssertionError("report.pdf was not ingested")
+
+
+def _doc_id_for_file(paths: ProjectPaths, file_name: str) -> str:
+    manifest = json.loads((paths.extracted_dir / "manifest.json").read_text(encoding="utf-8"))
+    for entry in manifest["documents"]:
+        if entry["file_name"] == file_name:
+            return entry["doc_id"]
+    raise AssertionError(f"{file_name} was not ingested")
 
 
 def _chunk_content(paths: ProjectPaths) -> dict[str, list[dict[str, object]]]:

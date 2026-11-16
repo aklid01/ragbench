@@ -20,6 +20,7 @@ def make_config(**overrides: object) -> EmbeddingConfig:
         "max_retries": 2,
         "retry_base_delay_seconds": 1.0,
         "expected_dimensions": 4,
+        "requests_per_minute": None,
     }
     values.update(overrides)
     return EmbeddingConfig(**values)  # type: ignore[arg-type]
@@ -219,6 +220,31 @@ def test_requests_are_spaced_according_to_the_rate_limit() -> None:
     )
     client.embed_passages(["a", "b"])
     assert sleeps == [0.4]
+    client.close()
+
+
+def test_retries_are_spaced_by_the_rate_limit_too() -> None:
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            return httpx.Response(429, json={"error": "slow down"}, request=request)
+        return httpx.Response(
+            200, json={"data": [{"index": 0, "embedding": [1.0, 0.0, 0.0, 0.0]}]}, request=request
+        )
+
+    clock = iter([0.0, 0.0, 0.1, 0.1])
+    sleeps: list[float] = []
+    client = EmbeddingClient(
+        make_config(requests_per_minute=120.0, retry_base_delay_seconds=5.0),
+        transport=ok_transport(handler),
+        sleep=sleeps.append,
+        monotonic=lambda: next(clock),
+    )
+    client.embed_query("hello")
+    assert attempts["count"] == 2
+    assert sleeps == [5.0, 0.4]
     client.close()
 
 

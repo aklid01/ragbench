@@ -170,3 +170,43 @@ def test_rebuild_replaces_the_index(tmp_path: Path, embeddings, capsys) -> None:
         (paths.index_dir / "custom-20-4" / "manifest.json").read_text(encoding="utf-8")
     )
     assert manifest["vector_count"] > 0
+
+
+def test_reindexing_after_a_corpus_edit_prunes_retired_vectors(
+    tmp_path: Path, embeddings, capsys
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+    _ingest(root, corpus, _spec_arguments())
+    assert main(["--root", str(root), "index", "--json"]) == 0
+    capsys.readouterr()
+
+    paths = ProjectPaths(root=root)
+    old_memo_id = _doc_id_for_file(paths, "memo.txt")
+
+    write_text(
+        corpus / "memo.txt",
+        "The 2022 audit found three major control weaknesses in procurement.\n",
+    )
+    assert main(["--root", str(root), "ingest", "--source", str(corpus), *_spec_arguments()]) == 0
+    capsys.readouterr()
+    assert main(["--root", str(root), "index", "--json"]) == 0
+    indexed = json.loads(capsys.readouterr().out)
+    assert indexed["pruned"] >= 1
+
+    exit_code = main(["--root", str(root), "search", "audit control weaknesses", "--json"])
+    assert exit_code == 0
+    results = json.loads(capsys.readouterr().out)["results"]
+    assert results
+    assert all(result["doc_id"] != old_memo_id for result in results)
+
+
+def _doc_id_for_file(paths: ProjectPaths, file_name: str) -> str:
+    manifest = json.loads((paths.extracted_dir / "manifest.json").read_text(encoding="utf-8"))
+    for entry in manifest["documents"]:
+        if entry["file_name"] == file_name:
+            return entry["doc_id"]
+    raise AssertionError(f"{file_name} was not ingested")

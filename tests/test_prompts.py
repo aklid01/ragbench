@@ -64,6 +64,8 @@ def test_abstention_is_detected_from_the_marker_alone() -> None:
         f"  {ABSTENTION_MARKER.lower()}  ",
         f'"{ABSTENTION_MARKER}"',
         f"{ABSTENTION_MARKER}.",
+        f"{ABSTENTION_MARKER}.\n\nThe passages do not mention a target year.",
+        f"  \n{ABSTENTION_MARKER}\nThe passages do not mention a target year.",
     ):
         assert detect_abstention(content), content
 
