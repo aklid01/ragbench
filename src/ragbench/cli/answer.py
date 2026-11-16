@@ -9,8 +9,7 @@ from ..config import Settings
 from ..embeddings import EmbeddingClient
 from ..errors import RetrievalError
 from ..generation import AnsweredQuestion, LLMClient, answer_question
-from ..retrieval.indexer import index_chunks, latest_indexed_spec
-from ..retrieval.search import search_chunks
+from ..retrieval import index_chunks, latest_indexed_spec, search_chunks
 from .common import _prompt_questions, _resolve_chunk_spec
 
 

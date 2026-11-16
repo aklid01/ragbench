@@ -56,12 +56,15 @@ def retry_after_seconds(response: httpx.Response) -> float | None:
     return (when - now_utc()).total_seconds()
 
 
-class EndpointClient[T]:
+class EndpointClient[T, C: _BaseProviderConfig]:
     """One configured endpoint with auth headers, request retries and backoff.
 
     Subclasses set the class level hints and implement
     :meth:`_handle_success`; :meth:`_post_with_retries` owns the retry loop.
+    ``C`` is the provider config type so subclasses see their own fields.
     """
+
+    config: C
 
     key_label: ClassVar[str]
     key_env_var: ClassVar[str]
@@ -73,7 +76,7 @@ class EndpointClient[T]:
 
     def __init__(
         self,
-        config: _BaseProviderConfig,
+        config: C,
         *,
         transport: httpx.BaseTransport | None = None,
         sleep: Callable[[float], None] = time.sleep,

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from ..generation.citations import Citation
+from ..generation import Citation
 
 __all__ = ["RetrievedRef", "CaseRecord"]
 

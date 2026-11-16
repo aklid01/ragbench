@@ -63,7 +63,10 @@ class Page(BaseModel):
 
     page_number: int | None
     text: str
-    char_count: int = 0
+    char_count: int = Field(
+        default=0,
+        description="character count of the page text, computed from text when omitted or 0",
+    )
 
     def model_post_init(self, _context: object) -> None:
         if not self.char_count:

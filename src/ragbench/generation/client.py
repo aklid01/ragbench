@@ -47,7 +47,7 @@ class LLMCompletion:
     latency_seconds: float
 
 
-class LLMClient(EndpointClient[LLMCompletion]):
+class LLMClient(EndpointClient[LLMCompletion, LLMConfig]):
     """Complete chat messages through one configured endpoint."""
 
     key_label = "LLM"

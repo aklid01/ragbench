@@ -18,7 +18,7 @@ from ..errors import RetrievalError
 from ..models import Chunk
 from ..paths import ProjectPaths
 from ..store import MANIFEST_NAME, load_chunks, write_json
-from .store import VectorIndex
+from .vector_index import VectorIndex
 
 __all__ = ["IndexSummary", "index_chunks", "latest_indexed_spec", "read_index_manifest"]
 

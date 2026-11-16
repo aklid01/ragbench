@@ -10,7 +10,7 @@ from ..errors import RetrievalError
 from ..models import citation_label_for
 from ..paths import ProjectPaths
 from .indexer import read_index_manifest
-from .store import PAGE_UNAVAILABLE, VectorIndex
+from .vector_index import PAGE_UNAVAILABLE, VectorIndex
 
 __all__ = ["RetrievedChunk", "search_chunks"]
 

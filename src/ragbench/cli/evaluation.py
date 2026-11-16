@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
-from ..chunking.spec import preset_names
+from ..chunking import preset_names
 from ..config import Settings
 from ..embeddings import EmbeddingClient
 from ..errors import RetrievalError
@@ -14,12 +15,16 @@ from ..evaluation import (
     GenerationMetrics,
     OperationalMetrics,
     RetrievalMetrics,
+    RunSummary,
+    default_grid,
+    list_run_files,
     load_eval_dataset,
+    read_run_file,
+    run_evaluation,
+    write_run_file,
 )
-from ..evaluation.experiments import default_grid
-from ..evaluation.runner import list_run_files, read_run_file, run_evaluation, write_run_file
 from ..generation import LLMClient
-from ..retrieval.indexer import read_index_manifest
+from ..retrieval import read_index_manifest
 from .common import _dataset_path, _resolve_spec
 
 
@@ -124,7 +129,12 @@ def _cmd_evaluate(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
-def _print_metric_summary(retrieval, generation, operational, summary) -> None:
+def _print_metric_summary(
+    retrieval: RetrievalMetrics,
+    generation: GenerationMetrics,
+    operational: OperationalMetrics,
+    summary: RunSummary,
+) -> None:
     print(f"configuration: chunking={summary.config.spec} top_k={summary.config.top_k}")
     print(
         "retrieval: "
@@ -203,12 +213,12 @@ def _cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
         print("no saved runs to compare; run 'ragbench evaluate' or 'ragbench experiment' first")
         return 0
 
-    groups: dict[tuple[str, str, str], list[dict]] = {}
+    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for run_file in run_files:
         summary, records = read_run_file(run_file)
         retrieval = RetrievalMetrics(records)
         generation = GenerationMetrics(records)
-        row = {
+        row: dict[str, Any] = {
             "run_id": summary.run_id,
             "spec": summary.config.spec,
             "top_k": summary.config.top_k,

@@ -24,7 +24,7 @@ import statistics
 import unicodedata
 from collections.abc import Sequence
 
-from ..generation.citations import extract_references
+from ..generation import extract_references
 from ..text import split_sentences
 from .records import CaseRecord
 

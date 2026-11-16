@@ -7,11 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-from ..chunking.pipeline import chunk_documents
-from ..chunking.spec import preset_names
-from ..chunking.tokenizer import get_counter
+from ..chunking import chunk_documents, get_counter, preset_names
 from ..config import Settings
-from ..ingest.runner import run_ingest
+from ..ingest import run_ingest
 from ..store import list_documents, load_chunks, read_manifest
 from .common import _chunking_spec, _resolve_chunk_spec
 

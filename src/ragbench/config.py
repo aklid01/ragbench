@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from pathlib import Path
+from typing import overload
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
@@ -170,12 +171,28 @@ class Settings(BaseModel):
         }
 
 
+@overload
+def _text(env: Mapping[str, str], name: str) -> str | None: ...
+
+
+@overload
+def _text(env: Mapping[str, str], name: str, default: str) -> str: ...
+
+
 def _text(env: Mapping[str, str], name: str, default: str | None = None) -> str | None:
     raw = env.get(f"{ENV_PREFIX}{name}")
     if raw is None:
         return default
     value = raw.strip()
     return value or default
+
+
+@overload
+def _number(env: Mapping[str, str], name: str) -> float | None: ...
+
+
+@overload
+def _number(env: Mapping[str, str], name: str, default: float) -> float: ...
 
 
 def _number(env: Mapping[str, str], name: str, default: float | None = None) -> float | None:
@@ -186,6 +203,14 @@ def _number(env: Mapping[str, str], name: str, default: float | None = None) -> 
         return float(raw)
     except ValueError as exc:
         raise ConfigError(f"{ENV_PREFIX}{name} must be a number, got {raw!r}") from exc
+
+
+@overload
+def _integer(env: Mapping[str, str], name: str) -> int | None: ...
+
+
+@overload
+def _integer(env: Mapping[str, str], name: str, default: int) -> int: ...
 
 
 def _integer(env: Mapping[str, str], name: str, default: int | None = None) -> int | None:

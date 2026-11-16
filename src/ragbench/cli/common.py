@@ -6,10 +6,10 @@ import argparse
 from collections.abc import Iterator
 from pathlib import Path
 
-from ..chunking.spec import ChunkingSpec, get_preset
+from ..chunking import ChunkingSpec, get_preset
 from ..config import Settings
 from ..errors import RetrievalError
-from ..retrieval.indexer import latest_indexed_spec
+from ..retrieval import latest_indexed_spec
 
 
 def _chunking_spec(args: argparse.Namespace, settings: Settings) -> ChunkingSpec:

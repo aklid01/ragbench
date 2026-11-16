@@ -15,7 +15,7 @@ from .normalize import normalize_text
 
 __all__ = ["ExtractionResult", "detect_media_type", "extract_document", "SUPPORTED_SUFFIXES"]
 
-SUPPORTED_SUFFIXES = {
+SUPPORTED_SUFFIXES: dict[str, MediaType] = {
     ".pdf": "pdf",
     ".txt": "text",
     ".text": "text",
@@ -72,7 +72,8 @@ def _extract_pdf(path: Path) -> ExtractionResult:
         result.title = str(metadata_title).strip()
         if document.page_count == 0:
             result.warnings.append("PDF contains no pages")
-        for index, page in enumerate(document):
+        for index in range(document.page_count):
+            page = document.load_page(index)
             try:
                 raw = page.get_text("text")
             except Exception as exc:

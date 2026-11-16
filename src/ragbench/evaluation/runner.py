@@ -18,9 +18,7 @@ from pydantic import BaseModel
 
 from ..config import EmbeddingConfig, LLMConfig
 from ..embeddings import EmbeddingClient
-from ..generation.citations import Citation
-from ..generation.client import LLMClient
-from ..generation.pipeline import AnsweredQuestion, answer_question
+from ..generation import AnsweredQuestion, Citation, LLMClient, answer_question
 from ..paths import ProjectPaths
 from ..store import write_json
 from .dataset import DATASET_VERSION, EvalCase, EvalDataset

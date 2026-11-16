@@ -63,7 +63,7 @@ class EmbeddingBatch:
     rejected: list[RejectedInput] = field(default_factory=list)
 
 
-class EmbeddingClient(EndpointClient[list[list[float]]]):
+class EmbeddingClient(EndpointClient[list[list[float]], EmbeddingConfig]):
     """Embed passages and queries through one configured endpoint."""
 
     key_label = "embedding"

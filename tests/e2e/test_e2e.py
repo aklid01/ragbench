@@ -36,6 +36,34 @@ def _build_corpus(directory: Path) -> None:
     )
 
 
+def test_an_unreadable_document_fails_the_command_without_stopping_the_run(
+    tmp_path: Path, capsys
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "broken.pdf").write_bytes(b"this is not a pdf file")
+    write_text(corpus / "memo.txt", "The 2021 audit found two minor control weaknesses.\n")
+
+    exit_code = main(
+        [
+            "--root",
+            str(root),
+            "ingest",
+            "--source",
+            str(corpus),
+            "--no-chunk",
+        ]
+    )
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "failure: broken.pdf:" in output
+    assert "ingested: 1 documents" in output
+    assert "1 failures" in output
+
+
 def test_ingest_produces_a_complete_artefact_set(tmp_path: Path, capsys) -> None:
     root = tmp_path / "project"
     root.mkdir()
