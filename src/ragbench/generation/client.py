@@ -154,8 +154,7 @@ class LLMClient:
     def _require_key(self) -> None:
         if self.config.api_key is None:
             raise GenerationError(
-                "LLM api key is not set (RAGBENCH_LLM_API_KEY); "
-                f"base_url is {self.config.base_url}"
+                f"LLM api key is not set (RAGBENCH_LLM_API_KEY); base_url is {self.config.base_url}"
             )
 
     def _retry_delay(self, response: httpx.Response, attempt: int) -> float:

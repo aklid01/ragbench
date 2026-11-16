@@ -46,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  ragbench inspect documents\n"
             "  ragbench inspect chunks --doc-id <document id>\n"
             "  ragbench index\n"
-            "  ragbench ask \"what is the net zero target year?\"\n"
+            '  ragbench ask "what is the net zero target year?"\n'
         ),
     )
     parser.add_argument("--version", action="version", version=f"ragbench {__version__}")
@@ -459,9 +459,7 @@ def _dataset_path(args: argparse.Namespace, settings: Settings) -> Path:
         return Path(args.dataset)
     candidate = settings.paths.eval_dir / "dataset.json"
     if not candidate.is_file():
-        raise RetrievalError(
-            f"no evaluation dataset at {candidate}; pass one with --dataset"
-        )
+        raise RetrievalError(f"no evaluation dataset at {candidate}; pass one with --dataset")
     return candidate
 
 
@@ -547,11 +545,7 @@ def _cmd_experiment(args: argparse.Namespace, settings: Settings) -> int:
     from .evaluation.experiments import default_grid
 
     paths = settings.paths
-    top_ks = (
-        [int(value) for value in args.top_ks.split(",")]
-        if args.top_ks
-        else [3, 5, 8]
-    )
+    top_ks = [int(value) for value in args.top_ks.split(",")] if args.top_ks else [3, 5, 8]
     if args.specs:
         specs = [value.strip() for value in args.specs.split(",") if value.strip()]
     else:

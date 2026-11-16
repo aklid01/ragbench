@@ -111,9 +111,7 @@ def latest_indexed_spec(paths: ProjectPaths) -> str | None:
     return manifests[-1].parent.name if manifests else None
 
 
-def _write_manifest(
-    paths: ProjectPaths, summary: IndexSummary, embedding_model: str
-) -> None:
+def _write_manifest(paths: ProjectPaths, summary: IndexSummary, embedding_model: str) -> None:
     payload = {
         "spec": summary.spec_name,
         "embedding_model": embedding_model,
