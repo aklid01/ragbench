@@ -35,8 +35,7 @@ def embedding_handler(vectors: list[list[float]]):
             200,
             json={
                 "data": [
-                    {"index": index, "embedding": vector}
-                    for index, vector in enumerate(vectors)
+                    {"index": index, "embedding": vector} for index, vector in enumerate(vectors)
                 ]
             },
             request=request,
@@ -83,9 +82,7 @@ def test_retryable_status_is_retried_with_backoff_then_succeeds() -> None:
         )
 
     sleeps: list[float] = []
-    client = EmbeddingClient(
-        make_config(), transport=ok_transport(handler), sleep=sleeps.append
-    )
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler), sleep=sleeps.append)
     vectors = client.embed_query("hello")
     assert vectors == [0.5, 0.5, 0.5, 0.5]
     assert attempts["count"] == 3
@@ -98,9 +95,7 @@ def test_retry_exhaustion_raises_a_clear_error() -> None:
         return httpx.Response(503, json={"error": "down"}, request=request)
 
     sleeps: list[float] = []
-    client = EmbeddingClient(
-        make_config(), transport=ok_transport(handler), sleep=sleeps.append
-    )
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler), sleep=sleeps.append)
     with pytest.raises(EmbeddingError) as excinfo:
         client.embed_query("hello")
     assert "3 attempts" in str(excinfo.value)
@@ -159,9 +154,7 @@ def test_missing_api_key_fails_before_any_request() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("no request should be made")
 
-    client = EmbeddingClient(
-        make_config(api_key=None), transport=ok_transport(handler)
-    )
+    client = EmbeddingClient(make_config(api_key=None), transport=ok_transport(handler))
     with pytest.raises(EmbeddingError) as excinfo:
         client.embed_query("hello")
     assert "api key" in str(excinfo.value)
@@ -214,9 +207,7 @@ def test_input_type_is_omitted_when_not_configured() -> None:
 
 def test_requests_are_spaced_according_to_the_rate_limit() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200, json={"data": [{"index": 0, "embedding": [1.0, 0.0, 0.0, 0.0]}]}
-        )
+        return httpx.Response(200, json={"data": [{"index": 0, "embedding": [1.0, 0.0, 0.0, 0.0]}]})
 
     clock = iter([0.0, 0.0, 0.1, 0.1])
     sleeps: list[float] = []
@@ -248,9 +239,7 @@ def retry_after_handler(status: int, headers: dict[str, str], succeed_on: int | 
 def test_429_honors_retry_after_seconds() -> None:
     attempts, handler = retry_after_handler(429, {"Retry-After": "7"}, succeed_on=3)
     sleeps: list[float] = []
-    client = EmbeddingClient(
-        make_config(), transport=ok_transport(handler), sleep=sleeps.append
-    )
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler), sleep=sleeps.append)
     vectors = client.embed_query("hello")
     assert vectors == [1.0, 0.0, 0.0, 0.0]
     assert attempts["count"] == 3
@@ -270,9 +259,7 @@ def test_retry_after_http_date_is_honored(monkeypatch: pytest.MonkeyPatch) -> No
 
     attempts, handler = retry_after_handler(503, {"Retry-After": retry_at}, succeed_on=2)
     sleeps: list[float] = []
-    client = EmbeddingClient(
-        make_config(), transport=ok_transport(handler), sleep=sleeps.append
-    )
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler), sleep=sleeps.append)
     client.embed_query("hello")
     assert sleeps == [9.0]
     client.close()
@@ -281,9 +268,7 @@ def test_retry_after_http_date_is_honored(monkeypatch: pytest.MonkeyPatch) -> No
 def test_retry_after_over_the_cap_fails_fast() -> None:
     attempts, handler = retry_after_handler(429, {"Retry-After": "3600"})
     sleeps: list[float] = []
-    client = EmbeddingClient(
-        make_config(), transport=ok_transport(handler), sleep=sleeps.append
-    )
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler), sleep=sleeps.append)
     with pytest.raises(EmbeddingError) as excinfo:
         client.embed_query("hello")
     assert "cap" in str(excinfo.value)
@@ -295,9 +280,7 @@ def test_retry_after_over_the_cap_fails_fast() -> None:
 def test_malformed_retry_after_falls_back_to_backoff() -> None:
     attempts, handler = retry_after_handler(429, {"Retry-After": "garbage"}, succeed_on=2)
     sleeps: list[float] = []
-    client = EmbeddingClient(
-        make_config(), transport=ok_transport(handler), sleep=sleeps.append
-    )
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler), sleep=sleeps.append)
     client.embed_query("hello")
     assert sleeps == [1.0]
     client.close()
@@ -315,9 +298,7 @@ def test_past_retry_after_date_waits_nothing(monkeypatch: pytest.MonkeyPatch) ->
 
     attempts, handler = retry_after_handler(429, {"Retry-After": past_date}, succeed_on=2)
     sleeps: list[float] = []
-    client = EmbeddingClient(
-        make_config(), transport=ok_transport(handler), sleep=sleeps.append
-    )
+    client = EmbeddingClient(make_config(), transport=ok_transport(handler), sleep=sleeps.append)
     client.embed_query("hello")
     assert sleeps == [0.0]
     client.close()
@@ -380,9 +361,7 @@ def screening_handler(reject_texts: set[str]):
 def test_one_rejection_in_a_batch_is_isolated_by_bisection() -> None:
     texts = ["fine one", "bad apple", "fine three", "fine four"]
     requests, handler = screening_handler({"bad apple"})
-    client = EmbeddingClient(
-        make_config(batch_size=4), transport=ok_transport(handler)
-    )
+    client = EmbeddingClient(make_config(batch_size=4), transport=ok_transport(handler))
     result = client.embed_passages(texts)
     assert len(result.vectors) == 3
     assert len(result.rejected) == 1
@@ -396,9 +375,7 @@ def test_one_rejection_in_a_batch_is_isolated_by_bisection() -> None:
 def test_several_rejections_in_one_batch_are_all_isolated() -> None:
     texts = ["bad one", "fine", "bad two", "fine too", "bad three"]
     requests, handler = screening_handler({"bad one", "bad two", "bad three"})
-    client = EmbeddingClient(
-        make_config(batch_size=8), transport=ok_transport(handler)
-    )
+    client = EmbeddingClient(make_config(batch_size=8), transport=ok_transport(handler))
     result = client.embed_passages(texts)
     assert [item.index for item in result.rejected] == [0, 2, 4]
     assert {item.text for item in result.rejected} == {"bad one", "bad two", "bad three"}

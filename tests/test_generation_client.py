@@ -35,7 +35,11 @@ def completion_body(
         "id": "chatcmpl-1",
         "model": model,
         "choices": [
-            {"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": finish_reason}
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": finish_reason,
+            }
         ],
         "usage": usage or {"prompt_tokens": 120, "completion_tokens": 45, "total_tokens": 165},
     }
@@ -271,7 +275,13 @@ def test_transient_server_errors_are_retried() -> None:
 
 
 def test_malformed_response_body_is_rejected() -> None:
-    for body in ({}, {"choices": []}, {"choices": [{"message": {}}]}, {"choices": [{"message": {"content": 42}}]}):
+    for body in (
+        {},
+        {"choices": []},
+        {"choices": [{"message": {}}]},
+        {"choices": [{"message": {"content": 42}}]},
+    ):
+
         def handler(request: httpx.Request, body: object = body) -> httpx.Response:
             return httpx.Response(200, json=body, request=request)
 

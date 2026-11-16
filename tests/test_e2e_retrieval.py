@@ -90,7 +90,9 @@ def test_index_and_search_round_trip(tmp_path: Path, embeddings, capsys) -> None
     assert "  failure:" not in captured.out
 
     paths = ProjectPaths(root=root)
-    manifest = json.loads((paths.index_dir / "custom-20-4" / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (paths.index_dir / "custom-20-4" / "manifest.json").read_text(encoding="utf-8")
+    )
     assert manifest["vector_count"] > 0
     assert manifest["dimensions"] == DIMENSIONS
     assert manifest["spec"] == "custom-20-4"
@@ -164,5 +166,7 @@ def test_rebuild_replaces_the_index(tmp_path: Path, embeddings, capsys) -> None:
     assert embeddings.request_count > requests_after_first_index
 
     paths = ProjectPaths(root=root)
-    manifest = json.loads((paths.index_dir / "custom-20-4" / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (paths.index_dir / "custom-20-4" / "manifest.json").read_text(encoding="utf-8")
+    )
     assert manifest["vector_count"] > 0

@@ -42,7 +42,9 @@ RETRIEVED = [
 
 def test_a_cited_completion_assembles_into_a_structured_answer() -> None:
     completion = make_completion("The target is 2040 [1]. Water use fell 18 percent [2].")
-    result = build_answer("what is the target?", "custom-800-80", 5, RETRIEVED, completion, 0.25, "test-embed")
+    result = build_answer(
+        "what is the target?", "custom-800-80", 5, RETRIEVED, completion, 0.25, "test-embed"
+    )
 
     assert result.abstained is False
     assert result.answer == completion.content
@@ -63,7 +65,9 @@ def test_a_cited_completion_assembles_into_a_structured_answer() -> None:
 
 def test_an_abstaining_completion_carries_no_citations() -> None:
     completion = make_completion("INSUFFICIENT_CONTEXT")
-    result = build_answer("who won the 1998 cup?", "custom-800-80", 5, RETRIEVED, completion, 0.1, "test-embed")
+    result = build_answer(
+        "who won the 1998 cup?", "custom-800-80", 5, RETRIEVED, completion, 0.1, "test-embed"
+    )
 
     assert result.abstained is True
     assert result.citations == []

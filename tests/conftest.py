@@ -83,3 +83,66 @@ def make_document(source_file: str = "report.pdf", pages: list[str] | None = Non
         pages=page_list,
         extractor="pymupdf",
     )
+
+
+def make_case_record(case_id: str, **overrides):
+    """Build a CaseRecord with sane defaults, overridden per test."""
+    from ragbench.evaluation.records import CaseRecord
+
+    defaults = {
+        "case_id": case_id,
+        "question": f"question {case_id}?",
+        "answerable": True,
+        "expected_doc": "report.pdf",
+        "expected_text": "the expected passage text",
+    }
+    defaults.update(overrides)
+    return CaseRecord.model_validate(defaults)
+
+
+def make_answered_question(
+    answer: str,
+    retrieved_texts: list[str],
+    citation_reference: int | None = None,
+):
+    """Build an AnsweredQuestion like the generation pipeline would."""
+    from datetime import UTC, datetime
+
+    from ragbench.generation.citations import build_citations
+    from ragbench.generation.pipeline import AnsweredQuestion
+    from ragbench.retrieval.search import RetrievedChunk
+
+    retrieved = [
+        RetrievedChunk(
+            rank=index + 1,
+            chunk_id=f"chunk-{index + 1}",
+            doc_id="report-1234abcd",
+            file_name="report.pdf",
+            page_start=1,
+            page_end=1,
+            text=text,
+            distance=0.3,
+            similarity=0.7,
+        )
+        for index, text in enumerate(retrieved_texts)
+    ]
+    citations, invalid = build_citations(answer, retrieved) if citation_reference else ([], [])
+    return AnsweredQuestion(
+        question="What is the net zero year?",
+        spec="test-800",
+        top_k=5,
+        answer=answer,
+        abstained=False,
+        citations=citations,
+        invalid_references=invalid,
+        retrieved=retrieved,
+        embedding_model="fake-embed",
+        model="fake-llm",
+        finish_reason="stop",
+        prompt_tokens=100,
+        completion_tokens=20,
+        total_tokens=120,
+        retrieval_seconds=0.01,
+        generation_seconds=0.02,
+        answered_at=datetime.now(UTC),
+    )

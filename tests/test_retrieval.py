@@ -23,7 +23,9 @@ from ragbench.store import write_chunks, write_document
 DIMENSIONS = 64
 
 
-def make_embedding_config(model: str = "test-embed", dimensions: int = DIMENSIONS) -> EmbeddingConfig:
+def make_embedding_config(
+    model: str = "test-embed", dimensions: int = DIMENSIONS
+) -> EmbeddingConfig:
     return EmbeddingConfig(
         base_url="http://embedding.test/v1",
         model=model,
@@ -64,9 +66,7 @@ def chunked_document(
     doc_id: str = "report-1234abcd",
     file_name: str = "report.pdf",
 ) -> list:
-    spec = ChunkingSpec(
-        name=spec_name, chunk_size_tokens=30, chunk_overlap_tokens=5
-    )
+    spec = ChunkingSpec(name=spec_name, chunk_size_tokens=30, chunk_overlap_tokens=5)
     counter = get_counter("cl100k_base")
     document = make_document(source_file=file_name, pages=pages)
     document = document.model_copy(update={"doc_id": doc_id})
@@ -76,9 +76,7 @@ def chunked_document(
     return chunks
 
 
-def text_index(
-    paths: Any, spec_name: str = "test-30-5", rebuild: bool = False, **config: Any
-):
+def text_index(paths: Any, spec_name: str = "test-30-5", rebuild: bool = False, **config: Any):
     embedder = FakeEmbedder()
     summary = index_chunks(
         paths, make_embedding_config(**config), embedder, spec_name, rebuild=rebuild
@@ -87,7 +85,10 @@ def text_index(
 
 
 def test_reindexing_an_unchanged_corpus_makes_no_embedding_calls(paths) -> None:
-    chunked_document(paths, ["Solar panels and inverters convert sunlight.", "Wind turbines spin in the harbour."])
+    chunked_document(
+        paths,
+        ["Solar panels and inverters convert sunlight.", "Wind turbines spin in the harbour."],
+    )
     summary, embedder = text_index(paths)
     assert summary.embedded > 0
 
@@ -111,7 +112,10 @@ def test_indexing_picks_up_only_new_chunks(paths) -> None:
 
 
 def test_rebuild_embeds_everything_again(paths) -> None:
-    chunked_document(paths, ["Solar panels and inverters convert sunlight.", "Wind turbines spin in the harbour."])
+    chunked_document(
+        paths,
+        ["Solar panels and inverters convert sunlight.", "Wind turbines spin in the harbour."],
+    )
     first, _ = text_index(paths)
     second, embedder2 = text_index(paths, rebuild=True)
     assert second.embedded == first.embedded
@@ -175,7 +179,9 @@ def test_search_ranks_the_matching_chunk_first(paths) -> None:
 def test_search_reports_unavailable_pages_for_unpaginated_chunks(paths) -> None:
     spec = ChunkingSpec(name="md-20-2", chunk_size_tokens=20, chunk_overlap_tokens=2)
     counter = get_counter("cl100k_base")
-    document = make_document(source_file="notes.md", pages=["Markdown notes about geothermal heat pumps."])
+    document = make_document(
+        source_file="notes.md", pages=["Markdown notes about geothermal heat pumps."]
+    )
     object.__setattr__(document.pages[0], "page_number", None)
     write_document(paths, document)
     write_chunks(paths, spec.name, document.doc_id, chunk_document(document, spec, counter))
@@ -189,7 +195,9 @@ def test_search_reports_unavailable_pages_for_unpaginated_chunks(paths) -> None:
 
 
 def test_top_k_larger_than_the_index_returns_everything(paths) -> None:
-    chunked_document(paths, ["Solar panels.", "Wind turbines.", "Geothermal pumps.", "Battery storage."])
+    chunked_document(
+        paths, ["Solar panels.", "Wind turbines.", "Geothermal pumps.", "Battery storage."]
+    )
     text_index(paths)
     results = search_chunks(
         paths, make_embedding_config(), FakeEmbedder(), "test-30-5", "solar panels", top_k=50
@@ -259,7 +267,9 @@ def test_rejected_chunks_are_reported_and_not_indexed(paths) -> None:
         doc_id="doc-b",
         file_name="wind.pdf",
     )
-    embedder = FakeEmbedder(reject={"Wind turbines spin in the harbour and feed the grid all winter long."})
+    embedder = FakeEmbedder(
+        reject={"Wind turbines spin in the harbour and feed the grid all winter long."}
+    )
     summary = index_chunks(paths, make_embedding_config(), embedder, "test-30-5")
 
     assert summary.embedded == 1
