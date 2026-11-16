@@ -5,13 +5,63 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from ..chunking.pipeline import chunk_documents
+from ..chunking.spec import preset_names
 from ..chunking.tokenizer import get_counter
 from ..config import Settings
 from ..ingest.runner import run_ingest
 from ..store import list_documents, load_chunks, read_manifest
 from .common import _chunking_spec, _resolve_chunk_spec
+
+
+def add_ingest_parser(sub: argparse._SubParsersAction) -> None:
+    ingest = sub.add_parser("ingest", help="extract documents and cut them into chunks")
+    ingest.add_argument(
+        "--source",
+        type=Path,
+        default=None,
+        help="directory of documents to ingest (default: data/documents)",
+    )
+    ingest.add_argument(
+        "--force",
+        action="store_true",
+        help="re-extract files that were already ingested, keeping text duplicates",
+    )
+    ingest.add_argument("--no-chunk", action="store_true", help="extract only, do not cut chunks")
+    ingest.add_argument(
+        "--preset",
+        choices=preset_names(),
+        default=None,
+        help=f"chunking configuration to use ({', '.join(preset_names())})",
+    )
+    ingest.add_argument("--chunk-size", type=int, default=None, help="chunk size in tokens")
+    ingest.add_argument(
+        "--overlap",
+        type=int,
+        default=None,
+        help="chunk overlap in tokens (defaults to a tenth of the chunk size)",
+    )
+    ingest.add_argument("--json", action="store_true", help="emit the summary as JSON")
+
+
+def add_inspect_parser(sub: argparse._SubParsersAction) -> None:
+    inspect = sub.add_parser("inspect", help="look at what has been ingested")
+    inspect_sub = inspect.add_subparsers(dest="inspect_command", required=True, metavar="<what>")
+    inspect_sub.add_parser("documents", help="list extracted documents")
+    chunks = inspect_sub.add_parser("chunks", help="show the chunks of one document")
+    chunks.add_argument("--doc-id", required=True, help="id of the document to show")
+    chunks.add_argument(
+        "--spec",
+        default=None,
+        help="chunking configuration the chunks were produced with",
+    )
+
+
+def add_config_parser(sub: argparse._SubParsersAction) -> None:
+    config = sub.add_parser("config", help="show the effective configuration")
+    config.add_argument("--json", action="store_true", help="emit the configuration as JSON")
 
 
 def _cmd_ingest(args: argparse.Namespace, settings: Settings) -> int:

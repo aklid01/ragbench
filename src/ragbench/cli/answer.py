@@ -14,6 +14,46 @@ from ..retrieval.search import search_chunks
 from .common import _prompt_questions, _resolve_chunk_spec
 
 
+def add_index_parser(sub: argparse._SubParsersAction) -> None:
+    index = sub.add_parser("index", help="embed chunks and build the vector index")
+    index.add_argument(
+        "--spec",
+        default=None,
+        help="chunking configuration to index (default: the only one available)",
+    )
+    index.add_argument("--rebuild", action="store_true", help="drop the index and embed again")
+    index.add_argument("--json", action="store_true", help="emit the summary as JSON")
+
+
+def add_search_parser(sub: argparse._SubParsersAction) -> None:
+    search = sub.add_parser("search", help="retrieve chunks for a query")
+    search.add_argument("query", help="the query text")
+    search.add_argument("--top-k", type=int, default=None, help="number of chunks to retrieve")
+    search.add_argument(
+        "--spec",
+        default=None,
+        help="chunking configuration to search (default: the most recently indexed)",
+    )
+    search.add_argument("--json", action="store_true", help="emit the results as JSON")
+
+
+def add_ask_parser(sub: argparse._SubParsersAction) -> None:
+    ask = sub.add_parser("ask", help="answer a question grounded in the indexed corpus")
+    ask.add_argument(
+        "question",
+        nargs="?",
+        default=None,
+        help="the question (omit it to read questions interactively)",
+    )
+    ask.add_argument("--top-k", type=int, default=None, help="number of chunks to retrieve")
+    ask.add_argument(
+        "--spec",
+        default=None,
+        help="chunking configuration to search (default: the most recently indexed)",
+    )
+    ask.add_argument("--json", action="store_true", help="emit the answer as JSON")
+
+
 def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
     spec_name = _resolve_chunk_spec(args.spec, settings)

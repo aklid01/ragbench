@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from ..chunking.spec import preset_names
 from ..config import Settings
@@ -20,6 +21,52 @@ from ..evaluation.runner import list_run_files, read_run_file, run_evaluation, w
 from ..generation import LLMClient
 from ..retrieval.indexer import read_index_manifest
 from .common import _dataset_path, _resolve_spec
+
+
+def add_evaluate_parser(sub: argparse._SubParsersAction) -> None:
+    evaluate = sub.add_parser("evaluate", help="run the evaluation dataset against the index")
+    evaluate.add_argument(
+        "--dataset",
+        type=Path,
+        default=None,
+        help="path to the evaluation dataset JSON (default: data/eval/dataset.json)",
+    )
+    evaluate.add_argument("--top-k", type=int, default=None, help="number of chunks to retrieve")
+    evaluate.add_argument(
+        "--spec",
+        default=None,
+        help="chunking configuration to search (default: the most recently indexed)",
+    )
+    evaluate.add_argument("--json", action="store_true", help="emit the summary as JSON")
+
+
+def add_experiment_parser(sub: argparse._SubParsersAction) -> None:
+    experiment = sub.add_parser(
+        "experiment", help="run the evaluation dataset over a grid of configurations"
+    )
+    experiment.add_argument(
+        "--dataset",
+        type=Path,
+        default=None,
+        help="path to the evaluation dataset JSON (default: data/eval/dataset.json)",
+    )
+    experiment.add_argument(
+        "--specs",
+        default=None,
+        help="comma separated chunking configurations (default: every indexed preset)",
+    )
+    experiment.add_argument(
+        "--top-ks", default=None, help="comma separated top-k values (default: 3,5,8)"
+    )
+    experiment.add_argument(
+        "--dry-run", action="store_true", help="show the grid without calling any API"
+    )
+    experiment.add_argument("--json", action="store_true", help="emit progress as JSON")
+
+
+def add_compare_parser(sub: argparse._SubParsersAction) -> None:
+    compare = sub.add_parser("compare", help="compare saved experiment runs")
+    compare.add_argument("--json", action="store_true", help="emit the table as JSON")
 
 
 def _cmd_evaluate(args: argparse.Namespace, settings: Settings) -> int:
