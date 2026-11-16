@@ -73,6 +73,18 @@ def run_id_for(prefix: str, started_at: datetime) -> str:
     return f"{stamp}-{prefix}"
 
 
+def _unique_run_id(paths: ProjectPaths, base: str) -> str:
+    """``base``, suffixed when a run file with that id already exists, so a
+    second run of the same configuration within one second cannot overwrite
+    the first."""
+    run_id = base
+    suffix = 1
+    while (run_dir(paths) / f"{run_id}.json").is_file():
+        suffix += 1
+        run_id = f"{base}-{suffix}"
+    return run_id
+
+
 def rank_of_expected(retrieved: list[RetrievedRef], expected_text: str | None) -> int | None:
     """The rank of the first retrieved chunk holding the expected passage."""
     if not expected_text:
@@ -196,7 +208,7 @@ def run_evaluation(
 
     finished_at = datetime.now(UTC)
     summary = RunSummary(
-        run_id=run_id_for(f"{spec_name}-k{top_k}", started_at),
+        run_id=_unique_run_id(paths, run_id_for(f"{spec_name}-k{top_k}", started_at)),
         started_at=started_at,
         finished_at=finished_at,
         config=config,

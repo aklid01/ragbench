@@ -13,6 +13,10 @@ actionable message.
 Content safety screening (HTTP 422) rejects individual texts, so a rejecting
 batch is bisected down to the offending inputs: everything embeddable is
 embedded, the rejects are reported to the caller instead of failing the run.
+
+The request spacing applies to every attempt, retries included, and is
+enforced per client instance: concurrent processes each keep their own
+budget and can exceed the configured rate together.
 """
 
 from __future__ import annotations
@@ -188,8 +192,8 @@ class EmbeddingClient:
             payload["input_type"] = input_type
 
         last_error = "no attempt was made"
-        self._throttle()
         for attempt in range(self.config.max_retries + 1):
+            self._throttle()
             try:
                 response = self._client.post("/embeddings", json=payload)
             except httpx.TimeoutException:

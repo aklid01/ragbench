@@ -45,10 +45,17 @@ def build_answer_prompt(question: str, retrieved: Sequence[RetrievedChunk]) -> l
 
 
 def detect_abstention(content: str) -> bool:
-    """True when the completion is the abstention marker and nothing else.
+    """True when the completion leads with the abstention marker.
 
-    Surrounding whitespace, matching quotes and a trailing period are
-    tolerated; anything beyond that counts as an answer, not an abstention.
+    The first non-empty line decides. It must be the marker alone, modulo
+    surrounding whitespace, quotes and trailing punctuation, so a model that
+    explains itself on the following lines still counts as abstaining.
+    Further words on the marker's own line count as an answer, and so does a
+    marker buried inside a sentence.
     """
-    normalized = content.strip().strip("\"'").rstrip(".").strip()
-    return normalized.upper() == ABSTENTION_MARKER
+    for line in content.splitlines():
+        normalized = line.strip().strip("\"'").rstrip(" .!?;:,")
+        if not normalized:
+            continue
+        return normalized.upper() == ABSTENTION_MARKER
+    return False
