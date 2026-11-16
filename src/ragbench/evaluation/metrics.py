@@ -25,6 +25,7 @@ import unicodedata
 from collections.abc import Sequence
 
 from ..generation.citations import extract_references
+from ..text import split_sentences
 from .records import CaseRecord
 
 __all__ = [
@@ -44,7 +45,6 @@ __all__ = [
 MATCH_THRESHOLD = 0.8
 
 _WORD = re.compile(r"[a-z0-9]+")
-_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+")
 
 
 def token_set(text: str) -> list[str]:
@@ -113,9 +113,7 @@ def compute_faithfulness(answer: str, valid_references: set[int]) -> float:
     An answer with no sentences scores 0.0. A sentence citing only invalid
     references counts as unfaithful.
     """
-    sentences = [
-        sentence.strip() for sentence in _SENTENCE_BOUNDARY.split(answer) if sentence.strip()
-    ]
+    sentences = split_sentences(answer)
     if not sentences:
         return 0.0
     supported = 0

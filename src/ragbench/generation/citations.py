@@ -18,13 +18,13 @@ from pydantic import BaseModel, Field, computed_field
 
 from ..models import citation_label_for
 from ..retrieval.search import RetrievedChunk
+from ..text import split_sentences
 
 __all__ = ["EXCERPT_CHAR_LIMIT", "Citation", "build_citations", "extract_references"]
 
 EXCERPT_CHAR_LIMIT = 280
 
 _CITATION_PATTERN = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
-_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+")
 
 
 class Citation(BaseModel):
@@ -69,7 +69,7 @@ def build_citations(
     reference numbers that point at nothing that was retrieved.
     """
     claims_by_reference: dict[int, list[str]] = {}
-    for sentence in _sentences(answer):
+    for sentence in split_sentences(answer):
         for reference in extract_references(sentence):
             claims_by_reference.setdefault(reference, []).append(sentence)
 
@@ -93,7 +93,3 @@ def build_citations(
             )
         )
     return citations, invalid
-
-
-def _sentences(text: str) -> list[str]:
-    return [sentence.strip() for sentence in _SENTENCE_BOUNDARY.split(text) if sentence.strip()]
