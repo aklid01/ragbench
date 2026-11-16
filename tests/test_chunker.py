@@ -126,3 +126,27 @@ def test_invalid_spec_is_rejected(counter) -> None:
         chunk_document(document, ChunkingSpec("bad", 10, 10), counter)
     with pytest.raises(ChunkingError):
         chunk_document(document, ChunkingSpec("bad", 0, 0), counter)
+
+
+def test_window_boundary_inside_a_multibyte_character(counter) -> None:
+    """A boundary splitting a multi byte character must not break provenance.
+
+    tiktoken decodes such a window with a replacement character, which no
+    longer matches the source; slicing through byte offsets stays exact.
+    Regression: the large-1200 preset failed on a report holding private use
+    glyphs because a 1200 token window ended inside one.
+    """
+    glyph = "\uf0fc"  # one private use character, 3 UTF-8 bytes
+    filler = "alpha beta gamma delta epsilon "
+    text = (filler + glyph) * 120
+    document = make_document()
+    document.pages = [Page(page_number=1, text=text)]
+    spec = ChunkingSpec(name="glyph", chunk_size_tokens=30, chunk_overlap_tokens=3)
+    chunks = chunk_document(document, spec, counter)
+    assert chunks
+    joined, _ = join_pages(document.pages)
+    for chunk in chunks:
+        assert joined[chunk.char_start : chunk.char_end] == chunk.text
+        assert "\ufffd" not in chunk.text
+    covered = "".join(chunk.text for chunk in chunks)
+    assert glyph in covered
