@@ -16,7 +16,7 @@ __all__ = ["TokenCounter", "TiktokenCounter", "get_counter"]
 
 @runtime_checkable
 class TokenCounter(Protocol):
-    """The three operations the chunker needs."""
+    """The operations the chunker needs."""
 
     def count(self, text: str) -> int:
         """Number of tokens in ``text``."""
@@ -26,6 +26,9 @@ class TokenCounter(Protocol):
 
     def decode(self, tokens: list[int]) -> str:
         """Text for ``tokens``."""
+
+    def byte_lengths(self, tokens: list[int]) -> list[int]:
+        """UTF-8 byte length of every token, for exact offset mapping."""
 
 
 class TiktokenCounter:
@@ -54,6 +57,9 @@ class TiktokenCounter:
 
     def decode(self, tokens: list[int]) -> str:
         return self._encoding.decode(tokens)
+
+    def byte_lengths(self, tokens: list[int]) -> list[int]:
+        return [len(self._encoding.decode_single_token_bytes(token)) for token in tokens]
 
 
 def get_counter(encoding_name: str = "cl100k_base") -> TokenCounter:

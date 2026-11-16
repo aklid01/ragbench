@@ -83,7 +83,19 @@ def _prepare(root: Path, tmp_path: Path, capsys) -> None:
     corpus = tmp_path / "corpus"
     _build_corpus(corpus)
     assert (
-        main(["--root", str(root), "ingest", "--source", str(corpus), "--chunk-size", "20", "--overlap", "4"])
+        main(
+            [
+                "--root",
+                str(root),
+                "ingest",
+                "--source",
+                str(corpus),
+                "--chunk-size",
+                "20",
+                "--overlap",
+                "4",
+            ]
+        )
         == 0
     )
     assert main(["--root", str(root), "index", "--json"]) == 0
@@ -95,7 +107,9 @@ def test_ask_returns_a_cited_answer_with_provenance(
 ) -> None:
     root = _make_project(tmp_path)
     _prepare(root, tmp_path, capsys)
-    llm = _wire_llm(monkeypatch, FakeLLMServer("The company targets net zero emissions by 2040 [1]."))
+    llm = _wire_llm(
+        monkeypatch, FakeLLMServer("The company targets net zero emissions by 2040 [1].")
+    )
     try:
         exit_code = main(
             ["--root", str(root), "ask", "What is the net zero target year?", "--json"]
@@ -116,7 +130,9 @@ def test_ask_returns_a_cited_answer_with_provenance(
     assert citation["citation_label"] == "report.pdf (page 1)"
     assert "net zero" in citation["excerpt"].lower()
     assert "2040" in citation["claims"][0]
-    cited_chunk = next(chunk for chunk in payload["retrieved"] if chunk["chunk_id"] == citation["chunk_id"])
+    cited_chunk = next(
+        chunk for chunk in payload["retrieved"] if chunk["chunk_id"] == citation["chunk_id"]
+    )
     assert cited_chunk["rank"] == 1
     assert payload["model"] == llm.received[0]["model"]
     assert payload["prompt_tokens"] == 321
@@ -164,7 +180,9 @@ def test_ask_flags_references_to_passages_never_retrieved(
     _prepare(root, tmp_path, capsys)
     llm = _wire_llm(monkeypatch, FakeLLMServer("The answer is 2040 [9], confirmed [2]."))
     try:
-        exit_code = main(["--root", str(root), "ask", "What is the net zero target year?", "--json"])
+        exit_code = main(
+            ["--root", str(root), "ask", "What is the net zero target year?", "--json"]
+        )
     finally:
         llm.stop()
 
@@ -182,7 +200,19 @@ def test_ask_without_an_index_fails_cleanly(
     corpus = tmp_path / "corpus"
     _build_corpus(corpus)
     assert (
-        main(["--root", str(root), "ingest", "--source", str(corpus), "--chunk-size", "20", "--overlap", "4"])
+        main(
+            [
+                "--root",
+                str(root),
+                "ingest",
+                "--source",
+                str(corpus),
+                "--chunk-size",
+                "20",
+                "--overlap",
+                "4",
+            ]
+        )
         == 0
     )
     _wire_llm(monkeypatch, FakeLLMServer("unused"))
@@ -274,6 +304,8 @@ def test_ask_accepts_top_k_and_spec_overrides(
     assert payload["top_k"] == 3
     assert len(payload["retrieved"]) == 3
     index_manifest = json.loads(
-        (ProjectPaths(root=root).index_dir / "custom-20-4" / "manifest.json").read_text(encoding="utf-8")
+        (ProjectPaths(root=root).index_dir / "custom-20-4" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert index_manifest["vector_count"] > 0

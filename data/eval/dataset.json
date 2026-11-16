@@ -1,0 +1,263 @@
+{
+  "version": "1.1.0",
+  "cases": [
+    {
+      "id": "q01",
+      "question": "What is Hurtigruten's overall target year for being emission-free?",
+      "expected_answer": "Hurtigruten has set an overall target of being emission-free in 2050, governed by its Board and Executive Management Team.",
+      "expected_doc": "hurtigruten-esg-report-2021.pdf",
+      "expected_text": "We have set an overall target of being emissionfree in 2050 that is governed by our Board and Executive Management Team.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 7 of hurtigruten-esg-report-2021.pdf. Page 21 also names 2040 as the carbon neutral Scope 1 milestone; this case asks only about the overall 2050 target."
+    },
+    {
+      "id": "q02",
+      "question": "By what year does GSK aim to have a net zero impact on climate across its full value chain?",
+      "expected_answer": "GSK's goal is a net zero impact on climate across its full value chain by 2030.",
+      "expected_doc": "esg-performance-report-2021.pdf",
+      "expected_text": "Our goal is to have net zero impact on climate across our full value chain by 2030.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 16 of esg-performance-report-2021.pdf."
+    },
+    {
+      "id": "q03",
+      "question": "What share of its 2020 footprint does GSK aim to offset with carbon removal solutions?",
+      "expected_answer": "GSK aims to offset around 20% of its 2020 footprint using responsible and high-quality carbon removal solutions.",
+      "expected_doc": "esg-performance-report-2021.pdf",
+      "expected_text": "GSK aims to offset around 20% of our 2020 footprint using responsible and high-quality carbon removal solutions.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 32 of esg-performance-report-2021.pdf."
+    },
+    {
+      "id": "q04",
+      "question": "Which reporting period does the JM sustainability report cover?",
+      "expected_answer": "The JM report covers the reporting period of January 1, 2018 through December 31, 2020.",
+      "expected_doc": "jm-sustainability-report-2021.pdf",
+      "expected_text": "The content of this publication reflects information and metrics gathered during the reporting period of January 1, 2018 through December 31, 2020.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 20 of jm-sustainability-report-2021.pdf."
+    },
+    {
+      "id": "q05",
+      "question": "Which ISO certifications is Hurtigruten working towards?",
+      "expected_answer": "Hurtigruten is certifying the company in accordance with ISO 9001 and ISO 14001.",
+      "expected_doc": "hurtigruten-esg-report-2021.pdf",
+      "expected_text": "We are certifying the company in accordance with ISO 9001 and ISO 14001. We invest in green technology",
+      "answerable": true,
+      "notes": "Verified verbatim on page 28 of hurtigruten-esg-report-2021.pdf."
+    },
+    {
+      "id": "q06",
+      "question": "How much did GSK reduce its overall water use in 2021 compared to 2020?",
+      "expected_answer": "In 2021 GSK reduced overall water use in its operations by 16% compared to 2020, and by 21% at sites in high water stress regions.",
+      "expected_doc": "esg-performance-report-2021.pdf",
+      "expected_text": "In 2021, we reduced overall water use in our operations by 16% compared to 2020 and by 21% in sites in high water stress regions.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 16 of esg-performance-report-2021.pdf."
+    },
+    {
+      "id": "q07",
+      "question": "What CO2 emission reduction did the biomass boiler at the SWM Le Mans site support, and over what period?",
+      "expected_answer": "The Le Mans, France biomass boiler supported a 20% CO2 emission reduction over a four-year period after its capital investment and installation.",
+      "expected_doc": "swm-esg-report-2022.pdf",
+      "expected_text": "Our Le Mans, France site uses a biomass boiler on site, and it supported a 20% CO2 emission reduction on a four-year period after its capital investment and installation.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 20 of swm-esg-report-2022.pdf."
+    },
+    {
+      "id": "q08",
+      "question": "Which North American mid-stream company issued a $1 billion note integrating ESG targets into its loan terms in July 2021?",
+      "expected_answer": "Enbridge became the latest North American mid-stream company to join the group, with a $1 billion note integrating ESG targets into its loan terms.",
+      "expected_doc": "cwf-cecn-esg-report-2021.pdf",
+      "expected_text": "In July 2021, Enbridge became the latest North American mid-stream company to join the group, with a $1 billion note that integrates ESG targets into its loan terms.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 9 of cwf-cecn-esg-report-2021.pdf. The report covers sustainability-linked loans in the Canadian energy sector."
+    },
+    {
+      "id": "q09",
+      "question": "What share of GSK's palm oil volume was traced back to mill level?",
+      "expected_answer": "Through its membership of Action on Sustainable Derivatives, GSK traced 88% of palm oil volume back to mill level.",
+      "expected_doc": "esg-performance-report-2021.pdf",
+      "expected_text": "Our membership of Action on Sustainable Derivatives helped us trace 88% of palm oil volume back to mill level.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 18 of esg-performance-report-2021.pdf."
+    },
+    {
+      "id": "q10",
+      "question": "By what year does Hurtigruten want its first zero emission ship sailing on the Norwegian coast?",
+      "expected_answer": "Hurtigruten targets its first zero emission ship sailing on the Norwegian coast by 2030.",
+      "expected_doc": "hurtigruten-esg-report-2021.pdf",
+      "expected_text": "Carbon neutral Scope 1 operations by 2040. First zero emission ship sailing on the Norwegian coast by 2030.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 7 of hurtigruten-esg-report-2021.pdf."
+    },
+    {
+      "id": "q11",
+      "question": "What did joining the Net-Zero Banking Alliance commit the bank to?",
+      "expected_answer": "By joining the Net-Zero Banking Alliance the bank undertook to align its activities with scientific scenarios consistent with reaching the Paris Climate Agreement's objectives.",
+      "expected_doc": "integrated-report-2021-2022.pdf",
+      "expected_text": "By joining the Net-Zero Banking Alliance, the Bank undertook to align its activities with scientific scenarios consistent with reaching the Paris Climate Agreement",
+      "answerable": true,
+      "notes": "Verified verbatim on page 35 of integrated-report-2021-2022.pdf; quote stops before the Agreement's objectives to avoid a unicode apostrophe in the extraction."
+    },
+    {
+      "id": "q12",
+      "question": "What share of the waste produced on its ships and on land does Hurtigruten aim to reuse and recycle, and by when?",
+      "expected_answer": "By 2030 Hurtigruten wants to reuse and recycle 100% of the waste it produces on its ships and on land.",
+      "expected_doc": "hurtigruten-esg-report-2021.pdf",
+      "expected_text": "By 2030 we want to reuse and recycle 100% of the waste we produce on our ships and on land.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 9 of hurtigruten-esg-report-2021.pdf."
+    },
+    {
+      "id": "q13",
+      "question": "What share of scrap produced at the SWM Roanoke, Virginia plant is sold or re-used instead of landfilled?",
+      "expected_answer": "SWM reduces landfilled waste at its Roanoke, Virginia plant by selling or re-using over 95% of the scrap produced there.",
+      "expected_doc": "swm-esg-report-2022.pdf",
+      "expected_text": "We reduce landfilled waste at our Roanoke, Virginia plant by either selling or re-using over 95% of scrap that is produced at Roanoke.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 21 of swm-esg-report-2022.pdf."
+    },
+    {
+      "id": "q14",
+      "question": "Which year does the Hurtigruten ESG report cover?",
+      "expected_answer": "The Hurtigruten ESG report covers the year 2021 (it welcomes the reader to the ESG report for the year of 2021 and carries 2022 copyright footers).",
+      "expected_doc": "hurtigruten-esg-report-2021.pdf",
+      "expected_text": "I would like to welcome you to our ESG report for the year of 2021.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 3 of hurtigruten-esg-report-2021.pdf."
+    },
+    {
+      "id": "q15",
+      "question": "How many people living with HIV had access to a generic dolutegravir product by the end of 2021?",
+      "expected_answer": "At least 21.3 million people living with HIV across 119 low and middle income countries had access to a generic dolutegravir product by the end of 2021.",
+      "expected_doc": "esg-performance-report-2021.pdf",
+      "expected_text": "at least 21.3 million people living with HIV across 119 LICs and LMICs had access to a generic product containing dolutegravir by the end of 2021",
+      "answerable": true,
+      "notes": "Verified verbatim on page 6 of esg-performance-report-2021.pdf."
+    },
+    {
+      "id": "q16",
+      "question": "How many employees does SWM say it has?",
+      "expected_answer": "SWM says it is 5,000 people strong in 2021.",
+      "expected_doc": "swm-esg-report-2022.pdf",
+      "expected_text": "We are 5,000 people strong in 2021 with an intense focus on understanding our customers and the industries we serve.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 3 of swm-esg-report-2022.pdf."
+    },
+    {
+      "id": "q17",
+      "question": "What percentage female is SWM's board?",
+      "expected_answer": "SWM states its Board is 25% female.",
+      "expected_doc": "swm-esg-report-2022.pdf",
+      "expected_text": "Our Board is 25% female. More than half of our senior leadership team is diverse, and 2 of our 9 executive leaders are women.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 10 of swm-esg-report-2022.pdf."
+    },
+    {
+      "id": "q18",
+      "question": "How much electricity will the wind farms financed with the Asian Development Bank be able to generate?",
+      "expected_answer": "The wind farms will be able to generate 144 megawatts, about 25% of the wind power capacity available in the country (Vietnam) in December 2020.",
+      "expected_doc": "integrated-report-2021-2022.pdf",
+      "expected_text": "These wind farms will be able to generate 144 megawatts of electricity, equivalent to about 25% of the wind power capacity available in the country in December 2020",
+      "answerable": true,
+      "notes": "Verified verbatim on page 33 of integrated-report-2021-2022.pdf."
+    },
+    {
+      "id": "q19",
+      "question": "What Lost Time Incident Frequency does Hurtigruten target by 2030?",
+      "expected_answer": "Hurtigruten targets a Lost Time Incident Frequency below 0.5 by 2030, alongside zero marine casualties (its 2021 average LTIF was 1.43).",
+      "expected_doc": "hurtigruten-esg-report-2021.pdf",
+      "expected_text": "0 marine casualties LTIF below 0.5 by 2030 How did we perform in 2021? Average LTIF: 1.43 Marine casualties: 0 Sick leave: 4.1%",
+      "answerable": true,
+      "notes": "Verified verbatim on page 15 of hurtigruten-esg-report-2021.pdf; a mixed target-and-results table."
+    },
+    {
+      "id": "q20",
+      "question": "How much CO2 have JM facilities using post-consumer recycled glass cumulatively saved?",
+      "expected_answer": "JM facilities using post-consumer recycled glass have cumulatively saved an estimated 13,100 tons of CO2 emissions.",
+      "expected_doc": "jm-sustainability-report-2021.pdf",
+      "expected_text": "JM facilities that make use of post-consumer recycled glass have cumulatively saved an estimated 13,100 tons of CO2 emissions",
+      "answerable": true,
+      "notes": "Verified verbatim on page 17 of jm-sustainability-report-2021.pdf."
+    },
+    {
+      "id": "q21",
+      "question": "How many tons of recyclables were generated at SWM's Santanesia site in 2020?",
+      "expected_answer": "The Santanesia, Brazil site generated 922.5 tons of recyclables in 2020.",
+      "expected_doc": "swm-esg-report-2022.pdf",
+      "expected_text": "In 2020, the total recyclables generated in Santanesia was 922.5 tons as detailed below.",
+      "answerable": true,
+      "notes": "Verified on page 21 of swm-esg-report-2022.pdf. The file spells the site 'Santan\u00e9sia'; the expected text uses the accent-stripped spelling because matching ignores accents."
+    },
+    {
+      "id": "q22",
+      "question": "By when will all GSK sites have biodiversity action plans?",
+      "expected_answer": "All GSK sites will have biodiversity action plans by 2025, after a 2021 pilot at three sites.",
+      "expected_doc": "esg-performance-report-2021.pdf",
+      "expected_text": "In 2021, we piloted our approach to biodiversity with a baseline assessment and action plans at three sites. All sites will have biodiversity action plans by 2025.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 17 of esg-performance-report-2021.pdf."
+    },
+    {
+      "id": "q23",
+      "question": "By what percentage does the bank plan to reduce its own carbon footprint, over which period?",
+      "expected_answer": "The bank plans to reduce its carbon footprint by 50% between 2019 and 2030 (in tons of CO2 equivalent).",
+      "expected_doc": "integrated-report-2021-2022.pdf",
+      "expected_text": "allowed us to define a roadmap to reduce our carbon emissions by 50% between 2019 and 2030 (in tons of CO2 equivalent)",
+      "answerable": true,
+      "notes": "Verified verbatim on page 35 of integrated-report-2021-2022.pdf."
+    },
+    {
+      "id": "q24",
+      "question": "What employee eNPS score does Hurtigruten target, and by when?",
+      "expected_answer": "Hurtigruten targets a group employee eNPS above 30 by 2025, which it considers excellent by industry benchmarks.",
+      "expected_doc": "hurtigruten-esg-report-2021.pdf",
+      "expected_text": "Our target is to achieve a group eNPS above 30 by 2025, as this is considered excellent by industry benchmarks.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 12 of hurtigruten-esg-report-2021.pdf."
+    },
+    {
+      "id": "q25",
+      "question": "What is JM's policy on suppliers that use illegal child or forced labour?",
+      "expected_answer": "JM will not knowingly engage a supplier that directly or indirectly employs illegal child, forced or compulsory labour.",
+      "expected_doc": "jm-sustainability-report-2021.pdf",
+      "expected_text": "JM will not knowingly engage a supplier that directly, or indirectly through a third party, employs illegal child, forced or compulsory labor in any way.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 10 of jm-sustainability-report-2021.pdf (the report uses the US spelling 'labor')."
+    },
+    {
+      "id": "q26",
+      "question": "How much had Canadian energy companies issued in sustainability-linked loans as of March 2021?",
+      "expected_answer": "As of March 2021, eight Canadian energy companies had issued sustainability-linked loans totalling C$8.44 billion.",
+      "expected_doc": "cwf-cecn-esg-report-2021.pdf",
+      "expected_text": "As of March 2021, eight Canadian energy companies had issued SLLs, for a total of C$8.44 billion.",
+      "answerable": true,
+      "notes": "Verified verbatim on page 9 of cwf-cecn-esg-report-2021.pdf. The file renders the sentence with em dashes around an appositive; the expected text omits that clause, which matching tolerates."
+    },
+    {
+      "id": "u01",
+      "question": "What interim Scope 4 avoided emissions reduction target has GSK set for 2030?",
+      "answerable": false,
+      "notes": "Verified absent: no occurrence of 'Scope 4' or 'avoided emissions' in any corpus document (Scope 3 appears in four documents, making the confusion plausible but the question truly unanswerable)."
+    },
+    {
+      "id": "u02",
+      "question": "By what year does SWM commit to reaching net zero emissions across its operations, and is that target SBTi-approved?",
+      "answerable": false,
+      "notes": "Verified absent: the SWM report contains no 'net zero', '2040', '2050' or 'science based' claims; its only carbon-neutrality mention is product-level (Cocoa Paper fibers)."
+    },
+    {
+      "id": "u03",
+      "question": "What was Hurtigruten's total revenue in 2021, in NOK?",
+      "answerable": false,
+      "notes": "Verified absent: 'NOK', 'kroner', 'revenue', 'net income' and 'profit' do not appear in the Hurtigruten file; its only monetary figures are foundation donations and a green bond issue, and its 'Turnover' figure (26.6%) is employee turnover."
+    },
+    {
+      "id": "u04",
+      "question": "What goal has JM set for 2028, for example an emissions or waste target for 2028?",
+      "answerable": false,
+      "notes": "Verified absent: '2027' and '2028' return zero hits across all six files; JM's stated goals are for 2020 and 2025. 'Geothermal' is also absent corpus-wide."
+    }
+  ]
+}

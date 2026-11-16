@@ -32,9 +32,7 @@ exactly {ABSTENTION_MARKER} and nothing else.
 """
 
 
-def build_answer_prompt(
-    question: str, retrieved: Sequence[RetrievedChunk]
-) -> list[dict[str, str]]:
+def build_answer_prompt(question: str, retrieved: Sequence[RetrievedChunk]) -> list[dict[str, str]]:
     """Build the system and user messages for one grounded answer."""
     blocks = []
     for index, chunk in enumerate(retrieved, start=1):
