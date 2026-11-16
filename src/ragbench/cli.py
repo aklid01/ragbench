@@ -28,7 +28,7 @@ from .evaluation import (
 from .evaluation.runner import run_evaluation, write_run_file
 from .generation import AnsweredQuestion, LLMClient, answer_question
 from .ingest.runner import run_ingest
-from .retrieval.indexer import index_chunks, latest_indexed_spec
+from .retrieval.indexer import index_chunks, latest_indexed_spec, read_index_manifest
 from .retrieval.search import search_chunks
 from .store import list_documents, load_chunks, read_manifest
 
@@ -66,7 +66,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="directory of documents to ingest (default: data/documents)",
     )
-    ingest.add_argument("--force", action="store_true", help="re-ingest documents already seen")
+    ingest.add_argument(
+        "--force",
+        action="store_true",
+        help="re-extract files that were already ingested, keeping text duplicates",
+    )
     ingest.add_argument("--no-chunk", action="store_true", help="extract only, do not cut chunks")
     ingest.add_argument(
         "--preset",
@@ -218,6 +222,8 @@ def _cmd_ingest(args: argparse.Namespace, settings: Settings) -> int:
                 "duplicates": summary.duplicates,
                 "failures": summary.failures,
                 "warnings": summary.warnings,
+                "unchanged": summary.unchanged,
+                "retired": summary.retired,
             },
             "chunking": None
             if chunk_summary is None
@@ -228,6 +234,7 @@ def _cmd_ingest(args: argparse.Namespace, settings: Settings) -> int:
                 "tokens": chunk_summary.token_total,
                 "largest_chunk_tokens": chunk_summary.largest_chunk_tokens,
                 "failures": chunk_summary.failures,
+                "pruned": chunk_summary.pruned,
             },
         }
         print(json.dumps(payload, indent=2))
@@ -239,6 +246,10 @@ def _cmd_ingest(args: argparse.Namespace, settings: Settings) -> int:
             print(f"  failure: {failure}")
         for warning in summary.warnings:
             print(f"  warning: {warning}")
+        if summary.unchanged:
+            print(f"  unchanged: {len(summary.unchanged)} already extracted, skipped")
+        for retired in summary.retired:
+            print(f"  retired: {retired}")
         if chunk_summary is not None:
             print(f"chunked: {chunk_summary.describe()}")
 
@@ -269,7 +280,7 @@ def _cmd_inspect(args: argparse.Namespace, settings: Settings) -> int:
         if not candidates:
             print("no chunks written yet")
             return 0
-        spec_name = candidates[0]
+        spec_name = _resolve_chunk_spec(None, settings)
         print(f"using chunking configuration {spec_name}")
     try:
         chunks = load_chunks(paths, spec_name, args.doc_id)
@@ -294,9 +305,15 @@ def _cmd_config(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
-def _index_spec(args: argparse.Namespace, settings: Settings) -> str:
-    if args.spec:
-        return str(args.spec)
+def _resolve_chunk_spec(args_spec: str | None, settings: Settings) -> str:
+    """The chunking configuration to operate on.
+
+    An explicit spec wins; otherwise the settings-derived custom spec when it
+    exists, then a single available configuration. Several candidates need an
+    explicit choice.
+    """
+    if args_spec:
+        return str(args_spec)
     paths = settings.paths
     candidates = sorted(path.name for path in paths.chunks_dir.glob("*") if path.is_dir())
     if not candidates:
@@ -315,7 +332,7 @@ def _index_spec(args: argparse.Namespace, settings: Settings) -> str:
 
 def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
-    spec_name = _index_spec(args, settings)
+    spec_name = _resolve_chunk_spec(args.spec, settings)
     client = EmbeddingClient(settings.embedding)
     try:
         summary = index_chunks(paths, settings.embedding, client, spec_name, rebuild=args.rebuild)
@@ -330,6 +347,7 @@ def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
                     "embedded": summary.embedded,
                     "skipped": summary.skipped,
                     "rejected": summary.rejected,
+                    "pruned": summary.pruned,
                     "vector_count": summary.vector_count,
                     "dimensions": summary.dimensions,
                     "failures": summary.failures,
@@ -349,8 +367,6 @@ def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
 
 def _cmd_search(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
-    if not paths.index_dir.is_dir():
-        raise RetrievalError("no index has been built yet; run 'ragbench index' first")
     spec_name = args.spec or latest_indexed_spec(paths)
     if spec_name is None:
         raise RetrievalError("no index has been built yet; run 'ragbench index' first")
@@ -384,8 +400,6 @@ def _cmd_search(args: argparse.Namespace, settings: Settings) -> int:
 
 def _cmd_ask(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
-    if not paths.index_dir.is_dir():
-        raise RetrievalError("no index has been built yet; run 'ragbench index' first")
     spec_name = args.spec or latest_indexed_spec(paths)
     if spec_name is None:
         raise RetrievalError("no index has been built yet; run 'ragbench index' first")
@@ -568,7 +582,9 @@ def _cmd_experiment(args: argparse.Namespace, settings: Settings) -> int:
     saved: list[str] = []
     try:
         for config in grid:
-            if not (paths.index_dir / config.spec_name).is_dir():
+            try:
+                read_index_manifest(paths, config.spec_name)
+            except RetrievalError:
                 print(f"skipping {config.describe()}: no index for {config.spec_name}")
                 continue
             print(f"running {config.describe()} ...")
@@ -583,6 +599,9 @@ def _cmd_experiment(args: argparse.Namespace, settings: Settings) -> int:
                 config.spec_name,
                 config.top_k,
             )
+            if records and summary.errors == len(records):
+                print(f"  all {len(records)} cases failed; run not saved: {records[0].error}")
+                continue
             run_file = write_run_file(paths, records, summary)
             saved.append(str(run_file))
             retrieval = RetrievalMetrics(records)
@@ -605,46 +624,53 @@ def _cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
         print("no saved runs to compare; run 'ragbench evaluate' or 'ragbench experiment' first")
         return 0
 
-    rows = []
+    groups: dict[tuple[str, str, str], list[dict]] = {}
     for run_file in run_files:
         summary, records = read_run_file(run_file)
         retrieval = RetrievalMetrics(records)
         generation = GenerationMetrics(records)
-        rows.append(
-            {
-                "run_id": summary.run_id,
-                "spec": summary.config.spec,
-                "top_k": summary.config.top_k,
-                "embedding_model": summary.config.embedding_model,
-                "llm_model": summary.config.llm_model,
-                "dataset_version": summary.config.dataset_version,
-                "retrieval": retrieval.as_dict(),
-                "generation": generation.as_dict(),
-                "operational": OperationalMetrics(records).as_dict(),
-            }
+        row = {
+            "run_id": summary.run_id,
+            "spec": summary.config.spec,
+            "top_k": summary.config.top_k,
+            "embedding_model": summary.config.embedding_model,
+            "llm_model": summary.config.llm_model,
+            "dataset_version": summary.config.dataset_version,
+            "retrieval": retrieval.as_dict(),
+            "generation": generation.as_dict(),
+            "operational": OperationalMetrics(records).as_dict(),
+        }
+        identity = (
+            summary.config.dataset_version,
+            summary.config.embedding_model,
+            summary.config.llm_model,
         )
+        groups.setdefault(identity, []).append(row)
 
     if args.json:
-        print(json.dumps(rows, indent=2))
+        print(json.dumps([row for rows in groups.values() for row in rows], indent=2))
         return 0
 
-    header = (
-        f"{'run':<28} {'recall@3':>8} {'recall@5':>8} {'recall@8':>8} "
-        f"{'mrr@5':>7} {'f1':>6} {'abstain':>8}"
-    )
-    print(header)
-    print("-" * len(header))
-    for row in rows:
-        recall = row["retrieval"]["recall"]
-        mrr = row["retrieval"]["mrr"]
-        f1 = row["generation"]["token_f1_mean"]
-        abstain = row["generation"]["abstention_rate_unanswerable"]
-        print(
-            f"{row['run_id']:<28} {recall.get('3', 0):>8.2f} {recall.get('5', 0):>8.2f} "
-            f"{recall.get('8', 0):>8.2f} {mrr.get('5', 0):>7.2f} "
-            f"{'n/a' if f1 is None else f'{f1:.2f}':>6} "
-            f"{'n/a' if abstain is None else f'{abstain:.2f}':>8}"
+    for identity, rows in sorted(groups.items()):
+        print(f"dataset {identity[0]}  embedding {identity[1]}  llm {identity[2]}")
+        header = (
+            f"{'run':<28} {'recall@3':>8} {'recall@5':>8} {'recall@8':>8} "
+            f"{'mrr@5':>7} {'f1':>6} {'abstain':>8}"
         )
+        print(header)
+        print("-" * len(header))
+        for row in sorted(rows, key=lambda row: (row["spec"], row["top_k"], row["run_id"])):
+            recall = row["retrieval"]["recall"]
+            mrr = row["retrieval"]["mrr"]
+            f1 = row["generation"]["token_f1_mean"]
+            abstain = row["generation"]["abstention_rate_unanswerable"]
+            print(
+                f"{row['run_id']:<28} {recall.get('3', 0):>8.2f} {recall.get('5', 0):>8.2f} "
+                f"{recall.get('8', 0):>8.2f} {mrr.get('5', 0):>7.2f} "
+                f"{'n/a' if f1 is None else f'{f1:.2f}':>6} "
+                f"{'n/a' if abstain is None else f'{abstain:.2f}':>8}"
+            )
+        print()
     return 0
 
 
