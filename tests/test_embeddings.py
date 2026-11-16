@@ -277,10 +277,10 @@ def test_retry_after_http_date_is_honored(monkeypatch: pytest.MonkeyPatch) -> No
     from datetime import UTC, datetime, timedelta
     from email.utils import format_datetime
 
-    import ragbench.embeddings.client as client_module
+    import ragbench.endpoint_client as endpoint_module
 
     frozen = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
-    monkeypatch.setattr(client_module, "_now_utc", lambda: frozen)
+    monkeypatch.setattr(endpoint_module, "now_utc", lambda: frozen)
     retry_at = format_datetime(frozen + timedelta(seconds=9))
 
     attempts, handler = retry_after_handler(503, {"Retry-After": retry_at}, succeed_on=2)
@@ -316,11 +316,11 @@ def test_past_retry_after_date_waits_nothing(monkeypatch: pytest.MonkeyPatch) ->
     from datetime import UTC, datetime, timedelta
     from email.utils import format_datetime
 
-    import ragbench.embeddings.client as client_module
+    import ragbench.endpoint_client as endpoint_module
 
     frozen = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
     past_date = format_datetime(frozen - timedelta(seconds=30))
-    monkeypatch.setattr(client_module, "_now_utc", lambda: frozen)
+    monkeypatch.setattr(endpoint_module, "now_utc", lambda: frozen)
 
     attempts, handler = retry_after_handler(429, {"Retry-After": past_date}, succeed_on=2)
     sleeps: list[float] = []

@@ -1,14 +1,10 @@
 """Embedding client for OpenAI-compatible ``/v1/embeddings`` endpoints.
 
 Passages and queries are embedded separately because asymmetric models want
-an ``input_type`` hint; symmetric models ignore it. Batching, retries with
-exponential backoff, request spacing and dimension validation all live here,
-so the retrieval code only sees vectors in and vectors out.
-
-Error handling: 408, 429 and every 5xx except 501 are retried; a ``Retry-After``
-header is honored when present so the client waits exactly as long as the
-server asks instead of guessing. Everything else fails immediately with an
-actionable message.
+an ``input_type`` hint; symmetric models ignore it. Batching, request spacing
+and dimension validation all live here, so the retrieval code only sees
+vectors in and vectors out; the retry semantics are the shared endpoint
+client's.
 
 Content safety screening (HTTP 422) rejects individual texts, so a rejecting
 batch is bisected down to the offending inputs: everything embeddable is
@@ -24,22 +20,18 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from email.utils import parsedate_to_datetime
 
 import httpx
 
 from ..config import EmbeddingConfig
+from ..endpoint_client import EndpointClient
 from ..errors import EmbeddingContentError, EmbeddingError
 
 __all__ = [
-    "MAX_RETRY_AFTER_SECONDS",
     "EmbeddingBatch",
     "EmbeddingClient",
     "RejectedInput",
 ]
-
-MAX_RETRY_AFTER_SECONDS = 120.0
 
 _REJECTION_HINTS = {
     400: "the request payload was rejected (check input_type and model settings)",
@@ -52,10 +44,6 @@ _REJECTION_HINTS = {
     422: "the request was unprocessable for the configured model",
     501: "the endpoint does not implement this operation",
 }
-
-
-def _now_utc() -> datetime:
-    return datetime.now(UTC)
 
 
 @dataclass(frozen=True)
@@ -75,29 +63,16 @@ class EmbeddingBatch:
     rejected: list[RejectedInput] = field(default_factory=list)
 
 
-def _is_retryable(status: int) -> bool:
-    return status in {408, 429} or (500 <= status <= 599 and status != 501)
-
-
-def _retry_after_seconds(response: httpx.Response) -> float | None:
-    """Parse the ``Retry-After`` header, in seconds or HTTP-date form."""
-    raw = response.headers.get("retry-after")
-    if not raw:
-        return None
-    raw = raw.strip()
-    if raw.isdigit():
-        return float(raw)
-    try:
-        when = parsedate_to_datetime(raw)
-    except (TypeError, ValueError):
-        return None
-    if when.tzinfo is None:
-        when = when.replace(tzinfo=UTC)
-    return (when - _now_utc()).total_seconds()
-
-
-class EmbeddingClient:
+class EmbeddingClient(EndpointClient[list[list[float]]]):
     """Embed passages and queries through one configured endpoint."""
+
+    key_label = "embedding"
+    key_env_var = "RAGBENCH_EMBEDDING_API_KEY"
+    timeout_env_var = "RAGBENCH_EMBEDDING_TIMEOUT_SECONDS"
+    endpoint_label = "embedding endpoint"
+    rejection_hints = _REJECTION_HINTS
+    retry_cap_hint = "lower RAGBENCH_REQUESTS_PER_MINUTE or try again later"
+    error_factory = EmbeddingError
 
     def __init__(
         self,
@@ -107,29 +82,11 @@ class EmbeddingClient:
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.config = config
-        self._sleep = sleep
-        self._monotonic = monotonic
+        super().__init__(config, transport=transport, sleep=sleep, monotonic=monotonic)
         rpm = config.requests_per_minute
         self._min_request_interval = 60.0 / rpm if rpm else 0.0
         self._last_request_at: float | None = None
-        headers = {}
-        if config.api_key is not None:
-            headers["Authorization"] = f"Bearer {config.api_key.get_secret_value()}"
-        self._client = httpx.Client(
-            base_url=config.base_url,
-            timeout=config.timeout_seconds,
-            transport=transport,
-            headers=headers,
-            follow_redirects=True,
-        )
-
-    @property
-    def model(self) -> str:
-        return self.config.model
-
-    def close(self) -> None:
-        self._client.close()
+        self._expected_count = 0
 
     def embed_passages(self, texts: Sequence[str]) -> EmbeddingBatch:
         """Embed document chunks, in batches of ``batch_size``.
@@ -169,14 +126,7 @@ class EmbeddingClient:
             self._embed_tolerant(texts[:middle], offset, input_type, batch)
             self._embed_tolerant(texts[middle:], offset + middle, input_type, batch)
 
-    def _require_key(self) -> None:
-        if self.config.api_key is None:
-            raise EmbeddingError(
-                "embedding api key is not set (RAGBENCH_EMBEDDING_API_KEY); "
-                f"base_url is {self.config.base_url}"
-            )
-
-    def _throttle(self) -> None:
+    def _before_attempt(self) -> None:
         if self._min_request_interval <= 0.0:
             return
         now = self._monotonic()
@@ -190,59 +140,20 @@ class EmbeddingClient:
         payload: dict[str, object] = {"model": self.config.model, "input": batch}
         if input_type:
             payload["input_type"] = input_type
+        self._expected_count = len(batch)
+        return self._post_with_retries("/embeddings", payload)
 
-        last_error = "no attempt was made"
-        for attempt in range(self.config.max_retries + 1):
-            self._throttle()
-            try:
-                response = self._client.post("/embeddings", json=payload)
-            except httpx.TimeoutException:
-                last_error = (
-                    f"timed out after {self.config.timeout_seconds:g}s; if this endpoint "
-                    f"is cold starting, raise RAGBENCH_EMBEDDING_TIMEOUT_SECONDS"
-                )
-            except httpx.HTTPError as exc:
-                last_error = f"request failed: {exc}"
-            else:
-                if response.status_code == 200:
-                    return self._parse(response, len(batch))
-                if not _is_retryable(response.status_code):
-                    body = response.text
-                    lowered = body.lower()
-                    if response.status_code == 422 and (
-                        "content safety" in lowered or "screening" in lowered
-                    ):
-                        raise EmbeddingContentError(
-                            f"input rejected by content safety screening (HTTP 422): {body[:200]}"
-                        )
-                    raise EmbeddingError(self._rejection_message(response.status_code, body))
-                last_error = f"HTTP {response.status_code} from the embedding endpoint"
-                if attempt < self.config.max_retries:
-                    self._sleep(self._retry_delay(response, attempt))
-                continue
-            if attempt < self.config.max_retries:
-                self._sleep(self.config.retry_base_delay_seconds * (2**attempt))
-        raise EmbeddingError(
-            f"embedding endpoint failed after {self.config.max_retries + 1} attempts: {last_error}"
-        )
+    def _handle_success(self, response: httpx.Response) -> list[list[float]]:
+        return self._parse(response, self._expected_count)
 
-    def _retry_delay(self, response: httpx.Response, attempt: int) -> float:
-        """Wait exactly as long as the server asks, or back off exponentially."""
-        retry_after = _retry_after_seconds(response)
-        if retry_after is None:
-            return self.config.retry_base_delay_seconds * (2**attempt)
-        if retry_after > MAX_RETRY_AFTER_SECONDS:
-            raise EmbeddingError(
-                f"the endpoint asked to retry after {retry_after:.0f}s, which exceeds the "
-                f"{MAX_RETRY_AFTER_SECONDS:g}s cap; lower RAGBENCH_REQUESTS_PER_MINUTE or "
-                f"try again later"
+    def _fail_non_retryable(self, response: httpx.Response) -> None:
+        body = response.text
+        lowered = body.lower()
+        if response.status_code == 422 and ("content safety" in lowered or "screening" in lowered):
+            raise EmbeddingContentError(
+                f"input rejected by content safety screening (HTTP 422): {body[:200]}"
             )
-        return max(retry_after, 0.0)
-
-    @staticmethod
-    def _rejection_message(status: int, body: str) -> str:
-        hint = _REJECTION_HINTS.get(status, "the endpoint rejected the request")
-        return f"embedding endpoint returned HTTP {status} ({hint}): {body[:200]}"
+        raise EmbeddingError(self._rejection_message(response.status_code, body))
 
     def _parse(self, response: httpx.Response, expected_count: int) -> list[list[float]]:
         try:
