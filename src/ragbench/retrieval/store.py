@@ -93,6 +93,11 @@ class VectorIndex:
             metadatas=[self._metadata(chunk) for chunk in chunks],
         )
 
+    def delete_ids(self, ids: list[str]) -> None:
+        """Remove vectors by chunk id, used to prune retired chunks."""
+        if ids:
+            self._collection.delete(ids=ids)
+
     def query(self, vector: list[float], top_k: int) -> list[dict[str, object]]:
         count = self._collection.count()
         if count == 0:
