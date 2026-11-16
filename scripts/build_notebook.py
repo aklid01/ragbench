@@ -7,7 +7,6 @@ as runs are added.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import nbformat
@@ -174,7 +173,10 @@ is one embedding call plus a local vector search.""",
         """if len(runs) > 1 and len(runs["total_tokens"].dropna()) > 1:
     axis = runs.plot.scatter(x="mean_generation_s", y="total_tokens", figsize=(6, 4))
     for _, row in runs.iterrows():
-        axis.annotate(f"{row['spec']}-k{row['top_k']}", (row["mean_generation_s"], row["total_tokens"]))
+        axis.annotate(
+            f"{row['spec']}-k{row['top_k']}",
+            (row["mean_generation_s"], row["total_tokens"]),
+        )
     axis.set_title("cost per configuration")
     axis.set_xlabel("mean generation seconds per case")
     axis.set_ylabel("total tokens for the dataset")
@@ -200,13 +202,28 @@ for run_file in sorted(RUNS_DIR.glob("*.json")):
     summary, records = read_run_file(run_file)
     for record in records:
         if record.error:
-            problem_rows.append({"run_id": summary.run_id, "case_id": record.case_id, "problem": f"error: {record.error}"})
+            problem_rows.append({
+                "run_id": summary.run_id,
+                "case_id": record.case_id,
+                "problem": f"error: {record.error}",
+            })
         elif record.answerable and record.abstained:
-            problem_rows.append({"run_id": summary.run_id, "case_id": record.case_id, "problem": "abstained on an answerable question"})
+            problem_rows.append({
+                "run_id": summary.run_id,
+                "case_id": record.case_id,
+                "problem": "abstained on an answerable question",
+            })
         elif not record.answerable and not record.abstained:
-            problem_rows.append({"run_id": summary.run_id, "case_id": record.case_id, "problem": "answered an unanswerable question"})
+            problem_rows.append({
+                "run_id": summary.run_id,
+                "case_id": record.case_id,
+                "problem": "answered an unanswerable question",
+            })
 
-pd.DataFrame(problem_rows, columns=["run_id", "case_id", "problem"]) if problem_rows else print("no problem cases in the saved runs")""",
+if problem_rows:
+    pd.DataFrame(problem_rows, columns=["run_id", "case_id", "problem"])
+else:
+    print("no problem cases in the saved runs")""",
     ),
     (
         "code",
@@ -216,7 +233,10 @@ for run_file in sorted(RUNS_DIR.glob("*.json")):
     abstained = [record.case_id for record in records if record.abstained]
     if abstained:
         last_records.append({"run_id": summary.run_id, "abstained_cases": ", ".join(abstained)})
-pd.DataFrame(last_records, columns=["run_id", "abstained_cases"]) if last_records else print("no abstentions recorded")""",
+if last_records:
+    pd.DataFrame(last_records, columns=["run_id", "abstained_cases"])
+else:
+    print("no abstentions recorded")""",
     ),
 ]
 
