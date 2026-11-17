@@ -70,8 +70,8 @@ def test_ungrounded_references_are_flagged_on_the_answer() -> None:
     assert result.invalid_references == [9]
 
 
-def test_a_missing_reported_model_falls_back_to_empty() -> None:
+def test_a_missing_reported_model_stays_none() -> None:
     completion = make_completion("answer [1]", model=None)
     result = build_answer("q", "spec", 1, RETRIEVED, completion, 0.0, "embed")
 
-    assert result.model == ""
+    assert result.model is None

@@ -9,9 +9,10 @@ from pathlib import Path
 
 from ..chunking import chunk_documents, get_counter, preset_names
 from ..config import Settings
+from ..errors import ArtifactError
 from ..ingest import run_ingest
 from ..store import list_documents, load_chunks, read_manifest
-from .common import _chunking_spec, _resolve_chunk_spec
+from .common import chunking_spec, resolve_chunk_spec_name
 
 
 def add_ingest_parser(sub: argparse._SubParsersAction) -> None:
@@ -69,7 +70,7 @@ def _cmd_ingest(args: argparse.Namespace, settings: Settings) -> int:
 
     chunk_summary = None
     if not args.no_chunk:
-        spec = _chunking_spec(args, settings)
+        spec = chunking_spec(args, settings)
         counter = get_counter(spec.tokenizer_encoding)
         chunk_summary = chunk_documents(paths, spec, counter)
 
@@ -125,12 +126,11 @@ def _cmd_inspect(args: argparse.Namespace, settings: Settings) -> int:
         if not doc_ids:
             print("no documents ingested yet")
             return 0
-        print(f"{manifest.get('document_count', len(doc_ids))} documents extracted\n")
-        for entry in manifest.get("documents", []):
-            pages = entry.get("page_count", "?")
+        print(f"{manifest['document_count']} documents extracted\n")
+        for entry in manifest["documents"]:
             print(
-                f"{entry['doc_id']:<40} {entry['file_name']:<45} pages={pages} "
-                f"chars={entry.get('char_count', '?')}"
+                f"{entry['doc_id']:<40} {entry['file_name']:<45} pages={entry['page_count']} "
+                f"chars={entry['char_count']}"
             )
         return 0
 
@@ -140,11 +140,11 @@ def _cmd_inspect(args: argparse.Namespace, settings: Settings) -> int:
         if not candidates:
             print("no chunks written yet")
             return 0
-        spec_name = _resolve_chunk_spec(None, settings)
+        spec_name = resolve_chunk_spec_name(None, settings)
         print(f"using chunking configuration {spec_name}")
     try:
         chunks = load_chunks(paths, spec_name, args.doc_id)
-    except FileNotFoundError as exc:
+    except ArtifactError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     for chunk in chunks:

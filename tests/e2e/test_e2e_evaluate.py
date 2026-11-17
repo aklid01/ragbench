@@ -170,7 +170,9 @@ def test_evaluate_reports_llm_failure_as_case_error(
     payload = json.loads(capsys.readouterr().out)
     assert payload["operational"]["errors"] == 2
     assert all(record["error"] for record in payload["errors"]) or payload["errors"]
-    assert payload["retrieval"]["recall"]["3"] == 0.0
+    # Every case errored, so retrieval metrics are not computable, not zero.
+    assert payload["retrieval"]["recall"]["3"] is None
+    assert payload["retrieval"]["mrr"]["3"] is None
 
 
 def test_experiment_runs_a_grid_and_compare_prints_the_table(

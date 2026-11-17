@@ -110,7 +110,7 @@ def _reuse_extracted(
 ) -> None:
     """Record an already extracted file as unchanged or as a text duplicate."""
     doc_id = doc_id_for(discovered.path.name, discovered.sha256)
-    text_hash = content_hash(existing.pages[0].text if existing.pages else "")
+    text_hash = content_hash("\n\n".join(page.text for page in existing.pages))
     if text_hash in seen_text_hashes:
         summary.duplicates.append(
             f"{discovered.path.name} holds the same text as {seen_text_hashes[text_hash]}"
@@ -144,7 +144,7 @@ def _persist_extracted(
     summary: IngestSummary,
 ) -> None:
     """Dedup, build and write the extracted document, updating the summary."""
-    text_hash = content_hash(extraction.pages[0].text if extraction.pages else "")
+    text_hash = content_hash("\n\n".join(page.text for page in extraction.pages))
     if text_hash in seen and not force:
         summary.duplicates.append(
             f"{discovered.path.name} holds the same text as {seen[text_hash]}"

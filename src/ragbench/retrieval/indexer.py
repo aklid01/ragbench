@@ -12,9 +12,8 @@ import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from ..config import EmbeddingConfig
 from ..embeddings import EmbeddingClient
-from ..errors import RetrievalError
+from ..errors import ArtifactError, RetrievalError
 from ..models import Chunk
 from ..paths import ProjectPaths
 from ..store import MANIFEST_NAME, load_chunks, write_json
@@ -48,13 +47,13 @@ class IndexSummary:
 
 def index_chunks(
     paths: ProjectPaths,
-    embedding: EmbeddingConfig,
     client: EmbeddingClient,
     spec_name: str,
     *,
     rebuild: bool = False,
 ) -> IndexSummary:
     """Embed the chunks of ``spec_name`` and persist them with their metadata."""
+    embedding = client.config
     spec_dir = paths.chunks_dir / spec_name
     if not spec_dir.is_dir():
         available = sorted(path.name for path in paths.chunks_dir.glob("*") if path.is_dir())
@@ -70,7 +69,12 @@ def index_chunks(
     todo: list[Chunk] = []
     current_ids: set[str] = set()
     for chunk_file in sorted(spec_dir.glob("*.json")):
-        for chunk in load_chunks(paths, spec_name, chunk_file.stem):
+        try:
+            chunks = load_chunks(paths, spec_name, chunk_file.stem)
+        except ArtifactError as exc:
+            summary.failures.append(str(exc))
+            continue
+        for chunk in chunks:
             current_ids.add(chunk.chunk_id)
             if chunk.chunk_id in present:
                 summary.skipped += 1

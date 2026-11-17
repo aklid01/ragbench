@@ -96,6 +96,7 @@ def test_generation_metrics_abstention_and_citations() -> None:
         answerable=True,
         expected_text="target 2040 net zero emissions",
         cited_expected=True,
+        cited_expected_references=[1],
         abstained=False,
         citations=[
             {
@@ -128,3 +129,101 @@ def test_generation_metrics_abstention_and_citations() -> None:
     assert metrics.answered_answerable_rate == 1.0
     assert metrics.citation_precision == 1.0
     assert metrics.citation_recall == 1.0
+
+
+def test_citation_precision_counts_citations_not_cases() -> None:
+    # One scored case, 2 citations, both pointing at the expected passage:
+    # precision must be 2/2 = 1.0. A record-level numerator over a
+    # citation-level denominator would report 1/2 = 0.5 here.
+    record = make_case_record(
+        "a",
+        rank_of_expected=1,
+        answerable=True,
+        expected_text="target 2040 net zero emissions",
+        cited_expected=True,
+        cited_expected_references=[1, 2],
+        abstained=False,
+        citations=[
+            {
+                "reference": 1,
+                "chunk_id": "c1",
+                "doc_id": "d",
+                "file_name": "f.pdf",
+                "page_start": 1,
+                "page_end": 1,
+                "excerpt": "target 2040 net zero emissions",
+                "claims": ["s1 [1]."],
+            },
+            {
+                "reference": 2,
+                "chunk_id": "c2",
+                "doc_id": "d",
+                "file_name": "f.pdf",
+                "page_start": 1,
+                "page_end": 1,
+                "excerpt": "target 2040 net zero emissions",
+                "claims": ["s2 [2]."],
+            },
+        ],
+    )
+    metrics = GenerationMetrics([record])
+    assert metrics.citation_precision == 1.0
+    assert metrics.citation_recall == 1.0
+
+
+def test_citation_precision_penalises_wrong_citations_per_citation() -> None:
+    # Two cases, 3 citations total, 2 point at expected passages: 2/3.
+    correct = make_case_record(
+        "a",
+        answerable=True,
+        expected_text="target 2040 net zero emissions",
+        cited_expected=True,
+        cited_expected_references=[1, 2],
+        abstained=False,
+        citations=[
+            {
+                "reference": 1,
+                "chunk_id": "c1",
+                "doc_id": "d",
+                "file_name": "f.pdf",
+                "page_start": 1,
+                "page_end": 1,
+                "excerpt": "target 2040 net zero emissions",
+                "claims": ["s1 [1]."],
+            },
+            {
+                "reference": 2,
+                "chunk_id": "c2",
+                "doc_id": "d",
+                "file_name": "f.pdf",
+                "page_start": 1,
+                "page_end": 1,
+                "excerpt": "target 2040 net zero emissions",
+                "claims": ["s2 [2]."],
+            },
+        ],
+    )
+    wrong = make_case_record(
+        "b",
+        answerable=True,
+        expected_text="water use fell 18 percent",
+        cited_expected=False,
+        cited_expected_references=[],
+        abstained=False,
+        citations=[
+            {
+                "reference": 1,
+                "chunk_id": "c3",
+                "doc_id": "d",
+                "file_name": "f.pdf",
+                "page_start": 2,
+                "page_end": 2,
+                "excerpt": "unrelated passage",
+                "claims": ["s3 [1]."],
+            },
+        ],
+    )
+    metrics = GenerationMetrics([correct, wrong])
+    assert metrics.citation_precision == 2 / 3
+    # Recall is still per case: one of two cases cited the expected passage.
+    assert metrics.citation_recall == 0.5

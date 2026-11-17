@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ..errors import ArtifactError
 from ..paths import ProjectPaths
 from ..store import list_documents, load_document, write_chunks
 from .chunker import chunk_document
@@ -53,7 +54,7 @@ def chunk_documents(
     for doc_id in targets:
         try:
             document = load_document(paths, doc_id)
-        except FileNotFoundError as exc:
+        except ArtifactError as exc:
             summary.failures.append(str(exc))
             continue
         chunks = chunk_document(document, spec, counter)

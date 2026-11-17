@@ -30,7 +30,7 @@ from .records import CaseRecord
 
 __all__ = [
     "MATCH_THRESHOLD",
-    "token_set",
+    "tokens",
     "contains_expected_text",
     "compute_token_f1",
     "compute_exact_match",
@@ -47,8 +47,8 @@ MATCH_THRESHOLD = 0.8
 _WORD = re.compile(r"[a-z0-9]+")
 
 
-def token_set(text: str) -> list[str]:
-    """Lower cased, accent stripped word tokens of ``text``."""
+def tokens(text: str) -> list[str]:
+    """Lower cased, accent stripped word tokens of ``text``, duplicates preserved."""
     decomposed = unicodedata.normalize("NFD", text.casefold())
     stripped = "".join(char for char in decomposed if not unicodedata.combining(char))
     return _WORD.findall(stripped)
@@ -77,18 +77,18 @@ def contains_expected_text(chunk_text: str, expected_text: str) -> bool:
     :data:`MATCH_THRESHOLD`. Subsequence, not contiguous, because page
     headers and footers interleave with report prose.
     """
-    expected = token_set(expected_text)
+    expected = tokens(expected_text)
     if not expected:
         return False
-    chunk = token_set(chunk_text)
+    chunk = tokens(chunk_text)
     matched = _lcs_length(chunk, expected)
     return matched / len(expected) >= MATCH_THRESHOLD
 
 
 def compute_token_f1(answer: str, reference: str) -> float:
     """Token level F1 between an answer and its reference answer."""
-    predicted = token_set(answer)
-    gold = token_set(reference)
+    predicted = tokens(answer)
+    gold = tokens(reference)
     if not predicted or not gold:
         return 0.0
     common = {}
@@ -104,7 +104,7 @@ def compute_token_f1(answer: str, reference: str) -> float:
 
 def compute_exact_match(answer: str, reference: str) -> bool:
     """True when the answer equals the reference after aggressive normalisation."""
-    return token_set(answer) == token_set(reference)
+    return tokens(answer) == tokens(reference)
 
 
 def compute_faithfulness(answer: str, valid_references: set[int]) -> float:
@@ -133,11 +133,15 @@ def _scored(outcomes: Sequence[CaseRecord]) -> list[CaseRecord]:
     ]
 
 
-def recall_at_k(outcomes: Sequence[CaseRecord], k: int) -> float:
-    """Share of scored answerable cases whose expected passage appeared in top-K."""
+def recall_at_k(outcomes: Sequence[CaseRecord], k: int) -> float | None:
+    """Share of scored answerable cases whose expected passage appeared in top-K.
+
+    ``None`` when no case is scoreable, matching the generation metrics'
+    not-computable convention.
+    """
     scored = _scored(outcomes)
     if not scored:
-        return 0.0
+        return None
     hits = sum(
         1
         for record in scored
@@ -146,15 +150,16 @@ def recall_at_k(outcomes: Sequence[CaseRecord], k: int) -> float:
     return hits / len(scored)
 
 
-def mrr_at_k(outcomes: Sequence[CaseRecord], k: int) -> float:
+def mrr_at_k(outcomes: Sequence[CaseRecord], k: int) -> float | None:
     """Mean reciprocal rank of the expected passage, capped at rank K.
 
     Cases whose passage was never retrieved contribute 0 to the mean, which
-    is why the denominator is every scored case, not only the hits.
+    is why the denominator is every scored case, not only the hits. ``None``
+    when no case is scoreable, matching the generation metrics.
     """
     scored = _scored(outcomes)
     if not scored:
-        return 0.0
+        return None
     total = sum(
         1.0 / record.rank_of_expected
         for record in scored
@@ -170,7 +175,7 @@ class RetrievalMetrics:
         self.recall = {k: recall_at_k(outcomes, k) for k in ks}
         self.mrr = {k: mrr_at_k(outcomes, k) for k in ks}
 
-    def as_dict(self) -> dict[str, dict[str, float]]:
+    def as_dict(self) -> dict[str, dict[str, float | None]]:
         recall = {str(k): v for k, v in self.recall.items()}
         mrr = {str(k): v for k, v in self.mrr.items()}
         return {"recall": recall, "mrr": mrr}
@@ -201,9 +206,17 @@ class GenerationMetrics:
         )
 
         citation_count = sum(len(record.citations) for record in scored)
-        cited_expected = sum(1 for record in scored if record.cited_expected)
-        self.citation_precision = cited_expected / citation_count if citation_count else None
-        self.citation_recall = cited_expected / len(scored) if scored else None
+        cited_expected_count = sum(
+            len(record.cited_expected_references) for record in scored
+        )
+        self.citation_precision = (
+            cited_expected_count / citation_count if citation_count else None
+        )
+        self.citation_recall = (
+            sum(1 for record in scored if record.cited_expected_references) / len(scored)
+            if scored
+            else None
+        )
 
         invalid_answerable = [record for record in scored if not record.abstained]
         self.invalid_reference_rate = (

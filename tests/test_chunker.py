@@ -7,6 +7,7 @@ import pytest
 from conftest import make_document
 from ragbench.chunking.chunker import chunk_document, join_pages
 from ragbench.chunking.spec import ChunkingSpec
+from ragbench.chunking.tokenizer import get_counter
 from ragbench.errors import ChunkingError
 from ragbench.models import Page
 
@@ -150,3 +151,26 @@ def test_window_boundary_inside_a_multibyte_character(counter) -> None:
         assert "\ufffd" not in chunk.text
     covered = "".join(chunk.text for chunk in chunks)
     assert glyph in covered
+
+
+def test_missing_tiktoken_raises_a_typed_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without tiktoken the counter fails with ChunkingError, not ImportError."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_tiktoken(name: str, *args, **kwargs):
+        if name == "tiktoken" or name.startswith("tiktoken."):
+            raise ImportError("No module named 'tiktoken'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_tiktoken)
+    with pytest.raises(ChunkingError) as excinfo:
+        get_counter("cl100k_base")
+    assert "tiktoken" in str(excinfo.value)
+
+
+def test_unknown_encoding_raises_a_typed_error() -> None:
+    with pytest.raises(ChunkingError) as excinfo:
+        get_counter("not-a-real-encoding")
+    assert "unknown tokenizer encoding" in str(excinfo.value)

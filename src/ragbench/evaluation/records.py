@@ -53,6 +53,10 @@ class CaseRecord(BaseModel):
         default=False,
         description="a validated citation points at a chunk holding the expected passage",
     )
+    cited_expected_references: list[int] = Field(
+        default_factory=list,
+        description="references of validated citations pointing at the expected passage",
+    )
     faithfulness: float | None = Field(
         default=None,
         description="share of answer sentences that carry a validated citation",

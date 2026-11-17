@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
-from ..config import EmbeddingConfig, LLMConfig
 from ..embeddings import EmbeddingClient
 from ..paths import ProjectPaths
 from ..retrieval.search import RetrievedChunk, search_chunks
@@ -37,7 +36,10 @@ class AnsweredQuestion(BaseModel):
     invalid_references: list[int] = Field(default_factory=list)
     retrieved: list[RetrievedChunk]
     embedding_model: str
-    model: str
+    model: str | None = Field(
+        default=None,
+        description="model that produced the answer, None when the endpoint omitted it",
+    )
     finish_reason: str | None
     prompt_tokens: int | None
     completion_tokens: int | None
@@ -72,7 +74,7 @@ def build_answer(
         invalid_references=invalid_references,
         retrieved=list(retrieved),
         embedding_model=embedding_model,
-        model=completion.model or "",
+        model=completion.model,
         finish_reason=completion.finish_reason,
         prompt_tokens=completion.prompt_tokens,
         completion_tokens=completion.completion_tokens,
@@ -85,9 +87,7 @@ def build_answer(
 
 def answer_question(
     paths: ProjectPaths,
-    embedding: EmbeddingConfig,
     embedding_client: EmbeddingClient,
-    llm: LLMConfig,
     llm_client: LLMClient,
     spec_name: str,
     question: str,
@@ -95,7 +95,7 @@ def answer_question(
 ) -> AnsweredQuestion:
     """Retrieve for ``question``, then ground an answer in what came back."""
     started = time.monotonic()
-    retrieved = search_chunks(paths, embedding, embedding_client, spec_name, question, top_k)
+    retrieved = search_chunks(paths, embedding_client, spec_name, question, top_k)
     retrieval_seconds = time.monotonic() - started
 
     completion = llm_client.complete(build_answer_prompt(question, retrieved))
@@ -106,5 +106,5 @@ def answer_question(
         retrieved=retrieved,
         completion=completion,
         retrieval_seconds=retrieval_seconds,
-        embedding_model=embedding.model,
+        embedding_model=embedding_client.config.model,
     )

@@ -25,7 +25,7 @@ from ..evaluation import (
 )
 from ..generation import LLMClient
 from ..retrieval import read_index_manifest
-from .common import _dataset_path, _resolve_spec
+from .common import dataset_path, resolve_spec_name
 
 
 def add_evaluate_parser(sub: argparse._SubParsersAction) -> None:
@@ -76,9 +76,9 @@ def add_compare_parser(sub: argparse._SubParsersAction) -> None:
 
 def _cmd_evaluate(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
-    dataset_path = _dataset_path(args, settings)
-    dataset = load_eval_dataset(dataset_path)
-    spec_name = _resolve_spec(args, settings)
+    eval_dataset_path = dataset_path(args, settings)
+    dataset = load_eval_dataset(eval_dataset_path)
+    spec_name = resolve_spec_name(args, settings)
     top_k = args.top_k or settings.retrieval.top_k
 
     embedding = EmbeddingClient(settings.embedding)
@@ -86,12 +86,10 @@ def _cmd_evaluate(args: argparse.Namespace, settings: Settings) -> int:
     try:
         records, summary = run_evaluation(
             paths,
-            settings.embedding,
             embedding,
-            settings.llm,
             llm,
             dataset,
-            dataset_path,
+            eval_dataset_path,
             spec_name,
             top_k,
         )
@@ -136,12 +134,13 @@ def _print_metric_summary(
     summary: RunSummary,
 ) -> None:
     print(f"configuration: chunking={summary.config.spec} top_k={summary.config.top_k}")
-    print(
-        "retrieval: "
-        + "  ".join(f"recall@{k}={value:.2f}" for k, value in retrieval.recall.items())
-        + "  "
-        + "  ".join(f"mrr@{k}={value:.2f}" for k, value in retrieval.mrr.items())
+    rendered_recall = "  ".join(
+        f"recall@{k}={'n/a' if v is None else f'{v:.2f}'}" for k, v in retrieval.recall.items()
     )
+    rendered_mrr = "  ".join(
+        f"mrr@{k}={'n/a' if v is None else f'{v:.2f}'}" for k, v in retrieval.mrr.items()
+    )
+    print(f"retrieval: {rendered_recall}  {rendered_mrr}")
     for name, value in generation.as_dict().items():
         rendered = "n/a" if value is None else f"{value:.2f}"
         print(f"generation: {name}={rendered}")
@@ -166,8 +165,8 @@ def _cmd_experiment(args: argparse.Namespace, settings: Settings) -> int:
                 print(config.describe())
         return 0
 
-    dataset_path = _dataset_path(args, settings)
-    dataset = load_eval_dataset(dataset_path)
+    eval_dataset_path = dataset_path(args, settings)
+    dataset = load_eval_dataset(eval_dataset_path)
     embedding = EmbeddingClient(settings.embedding)
     llm = LLMClient(settings.llm)
     saved: list[str] = []
@@ -181,12 +180,10 @@ def _cmd_experiment(args: argparse.Namespace, settings: Settings) -> int:
             print(f"running {config.describe()} ...")
             records, summary = run_evaluation(
                 paths,
-                settings.embedding,
                 embedding,
-                settings.llm,
                 llm,
                 dataset,
-                dataset_path,
+                eval_dataset_path,
                 config.spec_name,
                 config.top_k,
             )
@@ -196,9 +193,13 @@ def _cmd_experiment(args: argparse.Namespace, settings: Settings) -> int:
             run_file = write_run_file(paths, records, summary)
             saved.append(str(run_file))
             retrieval = RetrievalMetrics(records)
+            recall_5 = retrieval.recall[5]
+            mrr_5 = retrieval.mrr[5]
+            recall_text = "n/a" if recall_5 is None else f"{recall_5:.2f}"
+            mrr_text = "n/a" if mrr_5 is None else f"{mrr_5:.2f}"
             print(
-                f"  run {summary.run_id}: recall@5={retrieval.recall[5]:.2f} "
-                f"mrr@5={retrieval.mrr[5]:.2f}"
+                f"  run {summary.run_id}: recall@5={recall_text} "
+                f"mrr@5={mrr_text}"
             )
     finally:
         embedding.close()
@@ -253,9 +254,14 @@ def _cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
             mrr = row["retrieval"]["mrr"]
             f1 = row["generation"]["token_f1_mean"]
             abstain = row["generation"]["abstention_rate_unanswerable"]
+
+            def _cell(value: float | None, width: int) -> str:
+                return "n/a" if value is None else f"{value:.2f}"
+
             print(
-                f"{row['run_id']:<28} {recall.get('3', 0):>8.2f} {recall.get('5', 0):>8.2f} "
-                f"{recall.get('8', 0):>8.2f} {mrr.get('5', 0):>7.2f} "
+                f"{row['run_id']:<28} {_cell(recall.get('3'), 8):>8} "
+                f"{_cell(recall.get('5'), 8):>8} {_cell(recall.get('8'), 8):>8} "
+                f"{_cell(mrr.get('5'), 7):>7} "
                 f"{'n/a' if f1 is None else f'{f1:.2f}':>6} "
                 f"{'n/a' if abstain is None else f'{abstain:.2f}':>8}"
             )

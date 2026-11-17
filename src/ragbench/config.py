@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from .errors import ConfigError
-from .paths import ProjectPaths
+from .paths import ProjectPaths, find_project_root
 
 __all__ = [
     "ENV_PREFIX",
@@ -233,7 +233,7 @@ def load_settings(
     ``env`` overrides the process environment, which is how the tests inject
     configuration without touching the machine.
     """
-    resolved_root = root.resolve() if root else Path.cwd()
+    resolved_root = root.resolve() if root else find_project_root()
     merged: dict[str, str] = {}
     if use_env_file:
         merged.update(load_env_file(resolved_root / ".env"))
@@ -243,13 +243,12 @@ def load_settings(
 
     data_dir = _text(merged, "DATA_DIR", "data")
     artifacts_dir = _text(merged, "ARTIFACTS_DIR", "artifacts")
-    project_root = resolved_root if (resolved_root / "pyproject.toml").is_file() else resolved_root
     llm_key = _text(merged, "LLM_API_KEY")
     embedding_key = _text(merged, "EMBEDDING_API_KEY")
 
     try:
         settings = Settings(
-            root=project_root,
+            root=resolved_root,
             data_dir_name=data_dir,
             artifacts_dir_name=artifacts_dir,
             llm=LLMConfig(

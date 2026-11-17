@@ -7,10 +7,9 @@ import json
 
 from ..config import Settings
 from ..embeddings import EmbeddingClient
-from ..errors import RetrievalError
 from ..generation import AnsweredQuestion, LLMClient, answer_question
-from ..retrieval import index_chunks, latest_indexed_spec, search_chunks
-from .common import _prompt_questions, _resolve_chunk_spec
+from ..retrieval import index_chunks, search_chunks
+from .common import prompt_questions, resolve_chunk_spec_name, resolve_spec_name
 
 
 def add_index_parser(sub: argparse._SubParsersAction) -> None:
@@ -55,10 +54,10 @@ def add_ask_parser(sub: argparse._SubParsersAction) -> None:
 
 def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
-    spec_name = _resolve_chunk_spec(args.spec, settings)
+    spec_name = resolve_chunk_spec_name(args.spec, settings)
     client = EmbeddingClient(settings.embedding)
     try:
-        summary = index_chunks(paths, settings.embedding, client, spec_name, rebuild=args.rebuild)
+        summary = index_chunks(paths, client, spec_name, rebuild=args.rebuild)
     finally:
         client.close()
 
@@ -90,13 +89,11 @@ def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
 
 def _cmd_search(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
-    spec_name = args.spec or latest_indexed_spec(paths)
-    if spec_name is None:
-        raise RetrievalError("no index has been built yet; run 'ragbench index' first")
+    spec_name = resolve_spec_name(args, settings)
     top_k = args.top_k or settings.retrieval.top_k
     client = EmbeddingClient(settings.embedding)
     try:
-        results = search_chunks(paths, settings.embedding, client, spec_name, args.query, top_k)
+        results = search_chunks(paths, client, spec_name, args.query, top_k)
     finally:
         client.close()
 
@@ -123,26 +120,15 @@ def _cmd_search(args: argparse.Namespace, settings: Settings) -> int:
 
 def _cmd_ask(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
-    spec_name = args.spec or latest_indexed_spec(paths)
-    if spec_name is None:
-        raise RetrievalError("no index has been built yet; run 'ragbench index' first")
+    spec_name = resolve_spec_name(args, settings)
     top_k = args.top_k or settings.retrieval.top_k
 
-    questions = [args.question] if args.question else _prompt_questions()
+    questions = [args.question] if args.question else prompt_questions()
     embedding = EmbeddingClient(settings.embedding)
     llm = LLMClient(settings.llm)
     try:
         for question in questions:
-            result = answer_question(
-                paths,
-                settings.embedding,
-                embedding,
-                settings.llm,
-                llm,
-                spec_name,
-                question,
-                top_k,
-            )
+            result = answer_question(paths, embedding, llm, spec_name, question, top_k)
             if args.json:
                 print(json.dumps(result.model_dump(mode="json"), indent=2))
             else:

@@ -8,11 +8,11 @@ from pathlib import Path
 
 from ..chunking import ChunkingSpec, get_preset
 from ..config import Settings
-from ..errors import RetrievalError
+from ..errors import EvaluationError, RetrievalError
 from ..retrieval import latest_indexed_spec
 
 
-def _chunking_spec(args: argparse.Namespace, settings: Settings) -> ChunkingSpec:
+def chunking_spec(args: argparse.Namespace, settings: Settings) -> ChunkingSpec:
     """Pick the chunking configuration for this run.
 
     When only the size is given, the overlap defaults to a tenth of it so it
@@ -36,7 +36,7 @@ def _chunking_spec(args: argparse.Namespace, settings: Settings) -> ChunkingSpec
     )
 
 
-def _resolve_chunk_spec(args_spec: str | None, settings: Settings) -> str:
+def resolve_chunk_spec_name(args_spec: str | None, settings: Settings) -> str:
     """The chunking configuration to operate on.
 
     An explicit spec wins; otherwise the settings-derived custom spec when it
@@ -61,7 +61,8 @@ def _resolve_chunk_spec(args_spec: str | None, settings: Settings) -> str:
     )
 
 
-def _resolve_spec(args: argparse.Namespace, settings: Settings) -> str:
+def resolve_spec_name(args: argparse.Namespace, settings: Settings) -> str:
+    """The indexed configuration to search, explicit ``--spec`` or the latest one."""
     if args.spec:
         return str(args.spec)
     spec_name = latest_indexed_spec(settings.paths)
@@ -70,16 +71,17 @@ def _resolve_spec(args: argparse.Namespace, settings: Settings) -> str:
     return spec_name
 
 
-def _dataset_path(args: argparse.Namespace, settings: Settings) -> Path:
+def dataset_path(args: argparse.Namespace, settings: Settings) -> Path:
+    """The evaluation dataset to score against."""
     if args.dataset:
         return Path(args.dataset)
     candidate = settings.paths.eval_dir / "dataset.json"
     if not candidate.is_file():
-        raise RetrievalError(f"no evaluation dataset at {candidate}; pass one with --dataset")
+        raise EvaluationError(f"no evaluation dataset at {candidate}; pass one with --dataset")
     return candidate
 
 
-def _prompt_questions() -> Iterator[str]:
+def prompt_questions() -> Iterator[str]:
     """Read questions until an empty line or the end of input."""
     while True:
         try:

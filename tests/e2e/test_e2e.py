@@ -295,6 +295,7 @@ def test_inspect_commands_report_the_state(tmp_path: Path, capsys) -> None:
         )
         == 0
     )
+    capsys.readouterr()
 
     assert main(["--root", str(root), "inspect", "documents"]) == 0
     listed = capsys.readouterr().out
@@ -345,3 +346,124 @@ def _chunk_content(paths: ProjectPaths) -> dict[str, list[dict[str, object]]]:
             }
         content[path.name] = payload["chunks"]
     return content
+
+
+def test_ingest_json_payload_reports_both_summaries(tmp_path: Path, capsys) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+
+    exit_code = main(
+        [
+            "--root",
+            str(root),
+            "ingest",
+            "--source",
+            str(corpus),
+            "--chunk-size",
+            "20",
+            "--overlap",
+            "4",
+            "--json",
+        ]
+    )
+    assert exit_code == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert set(payload) == {"ingest", "chunking"}
+    ingest = payload["ingest"]
+    assert len(ingest["documents"]) == 3
+    assert ingest["pages"] == 5
+    assert ingest["characters"] > 0
+    assert ingest["duplicates"] == []
+    assert ingest["failures"] == []
+    assert ingest["unchanged"] == []
+    assert ingest["retired"] == []
+    chunking = payload["chunking"]
+    assert chunking is not None
+    assert chunking["spec"] == "custom-20-4"
+    assert chunking["documents"] == 3
+    assert chunking["chunks"] > 3
+    assert chunking["tokens"] > 0
+    assert chunking["largest_chunk_tokens"] <= 20
+    assert chunking["failures"] == []
+
+
+def test_ingest_json_without_chunking_reports_a_null_chunking_section(
+    tmp_path: Path, capsys
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+
+    assert main(["--root", str(root), "ingest", "--source", str(corpus), "--no-chunk", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload["ingest"]["documents"]) == 3
+    assert payload["chunking"] is None
+
+
+def test_ingest_force_preset_and_unchanged_paths(tmp_path: Path, capsys) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+    corpus = tmp_path / "corpus"
+    _build_corpus(corpus)
+
+    preset_arguments = [
+        "--root",
+        str(root),
+        "ingest",
+        "--source",
+        str(corpus),
+        "--preset",
+        "small",
+    ]
+    assert main(preset_arguments) == 0
+    paths = ProjectPaths(root=root)
+    assert (paths.chunks_dir / "small-500").is_dir()
+
+    # A plain re-run over an unchanged corpus skips every file.
+    capsys.readouterr()
+    assert main(preset_arguments) == 0
+    output = capsys.readouterr().out
+    assert "3 already extracted, skipped" in output
+
+    # A content duplicate (different bytes, same normalised text) is skipped
+    # on a plain re-run; the summary names the file it duplicates.
+    (corpus / "memo_copy.md").write_bytes(
+        b"The 2021 audit found two minor control weaknesses in procurement.\r\n\r\n"
+    )
+    capsys.readouterr()
+    assert main(preset_arguments) == 0
+    output = capsys.readouterr().out
+    assert "duplicate: memo_copy.md holds the same text as memo.txt" in output
+    manifest = json.loads((paths.extracted_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["document_count"] == 3
+
+    # --force re-extracts everything and keeps the text duplicate in place.
+    assert main([*preset_arguments, "--force"]) == 0
+    output = capsys.readouterr().out
+    assert "0 duplicates skipped" in output
+    manifest = json.loads((paths.extracted_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["document_count"] == 4
+
+
+def test_config_command_prints_settings_without_secrets(tmp_path: Path, capsys) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'ragbench'\n", encoding="utf-8")
+
+    assert main(["--root", str(root), "config"]) == 0
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert payload["root"] == str(root)
+    assert payload["llm"]["api_key"] == "not set"
+    assert payload["embedding"]["api_key"] == "not set"
+    assert payload["chunking"]["chunk_size_tokens"] == 800
+
+    assert main(["--root", str(root), "config", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == payload

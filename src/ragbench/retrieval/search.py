@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, computed_field
 
-from ..config import EmbeddingConfig
 from ..embeddings import EmbeddingClient
 from ..errors import RetrievalError
 from ..models import citation_label_for
@@ -36,13 +35,13 @@ class RetrievedChunk(BaseModel):
 
 def search_chunks(
     paths: ProjectPaths,
-    embedding: EmbeddingConfig,
     client: EmbeddingClient,
     spec_name: str,
     query: str,
     top_k: int,
 ) -> list[RetrievedChunk]:
     """Rank the indexed chunks of ``spec_name`` against ``query``."""
+    embedding = client.config
     read_index_manifest(paths, spec_name)
     index = VectorIndex(paths, embedding, spec_name)
     if index.count() == 0:

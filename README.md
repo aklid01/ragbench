@@ -84,14 +84,14 @@ and [docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) for a guided tour.
 ## Technology
 
 - Python 3.12 or newer
-- PyMuPDF for PDF extraction
 - Pydantic for data validation
-- ChromaDB for the vector store
-- tiktoken for token counting
 - httpx for the OpenAI-compatible API clients
+- PyMuPDF (ingest extra) for PDF extraction
+- tiktoken (ingest extra) for token counting
+- ChromaDB (index extra) for the vector store
 - pytest for tests
-- pandas and matplotlib for experiment analysis
-- Jupyter for the evaluation notebook
+- pandas and matplotlib (analysis extra) for experiment analysis
+- Jupyter (notebook extra) for the evaluation notebook
 
 No LLM framework is used. Document processing, chunking, embedding, retrieval,
 prompt construction and answer generation are implemented in this repository.
@@ -100,8 +100,8 @@ prompt construction and answer generation are implemented in this repository.
 
 ```bash
 python -m venv .venv
-.venv\Scripts\python -m pip install -e ".[index,analysis,notebook,dev]"   # Windows
-.venv/bin/python -m pip install -e ".[index,analysis,notebook,dev]"       # macOS and Linux
+.venv\Scripts\python -m pip install -e ".[ingest,index,analysis,notebook,dev]"   # Windows
+.venv/bin/python -m pip install -e ".[ingest,index,analysis,notebook,dev]"       # macOS and Linux
 ```
 
 ## Configuration
