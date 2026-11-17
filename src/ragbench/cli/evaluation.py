@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ from ..config import Settings
 from ..embeddings import EmbeddingClient
 from ..errors import RetrievalError
 from ..evaluation import (
+    EvalDataset,
     GenerationMetrics,
     OperationalMetrics,
     RetrievalMetrics,
@@ -24,8 +26,30 @@ from ..evaluation import (
     write_run_file,
 )
 from ..generation import LLMClient
+from ..paths import ProjectPaths
 from ..retrieval import read_index_manifest
+from ..store import read_manifest
 from .common import dataset_path, resolve_spec_name
+
+
+def _warn_missing_documents(dataset: EvalDataset, paths: ProjectPaths) -> None:
+    """Warn when dataset cases reference documents the corpus does not hold.
+
+    Their retrieval metrics measure a match that cannot happen and quietly
+    read as zero, so the mismatch is called out before the run starts.
+    """
+    corpus = {entry["file_name"].lower() for entry in read_manifest(paths)["documents"]}
+    expected = {case.expected_doc.lower() for case in dataset.cases if case.expected_doc}
+    missing = sorted(expected - corpus)
+    if not missing:
+        return
+    shown = ", ".join(missing[:5])
+    more = f", and {len(missing) - 5} more" if len(missing) > 5 else ""
+    print(
+        f"warning: {len(missing)} of {len(expected)} dataset documents are not in the "
+        f"ingested corpus: {shown}{more}; their retrieval metrics will be zero",
+        file=sys.stderr,
+    )
 
 
 def add_evaluate_parser(sub: argparse._SubParsersAction) -> None:
@@ -78,6 +102,7 @@ def _cmd_evaluate(args: argparse.Namespace, settings: Settings) -> int:
     paths = settings.paths
     eval_dataset_path = dataset_path(args, settings)
     dataset = load_eval_dataset(eval_dataset_path)
+    _warn_missing_documents(dataset, paths)
     spec_name = resolve_spec_name(args, settings)
     top_k = args.top_k or settings.retrieval.top_k
 
@@ -167,6 +192,7 @@ def _cmd_experiment(args: argparse.Namespace, settings: Settings) -> int:
 
     eval_dataset_path = dataset_path(args, settings)
     dataset = load_eval_dataset(eval_dataset_path)
+    _warn_missing_documents(dataset, paths)
     embedding = EmbeddingClient(settings.embedding)
     llm = LLMClient(settings.llm)
     saved: list[str] = []
@@ -197,10 +223,7 @@ def _cmd_experiment(args: argparse.Namespace, settings: Settings) -> int:
             mrr_5 = retrieval.mrr[5]
             recall_text = "n/a" if recall_5 is None else f"{recall_5:.2f}"
             mrr_text = "n/a" if mrr_5 is None else f"{mrr_5:.2f}"
-            print(
-                f"  run {summary.run_id}: recall@5={recall_text} "
-                f"mrr@5={mrr_text}"
-            )
+            print(f"  run {summary.run_id}: recall@5={recall_text} mrr@5={mrr_text}")
     finally:
         embedding.close()
         llm.close()
