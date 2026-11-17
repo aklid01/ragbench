@@ -69,6 +69,7 @@ def _cmd_index(args: argparse.Namespace, settings: Settings) -> int:
                     "embedded": summary.embedded,
                     "skipped": summary.skipped,
                     "rejected": summary.rejected,
+                    "rejected_ids": summary.rejected_ids,
                     "pruned": summary.pruned,
                     "vector_count": summary.vector_count,
                     "dimensions": summary.dimensions,

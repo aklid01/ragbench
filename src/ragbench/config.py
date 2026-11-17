@@ -92,7 +92,9 @@ class EmbeddingConfig(_BaseProviderConfig):
 
     The two input types are optional and are only sent when set, for
     asymmetric models that require being told whether the input is a query
-    or a passage.
+    or a passage. ``max_input_tokens`` is the model's input length cap; when
+    set, indexing fails fast instead of trusting the endpoint to truncate
+    or refuse overlong chunks.
     """
 
     query_input_type: str | None = None
@@ -100,6 +102,7 @@ class EmbeddingConfig(_BaseProviderConfig):
     expected_dimensions: int | None = Field(default=None, gt=0)
     batch_size: int = Field(default=16, gt=0)
     requests_per_minute: float | None = Field(default=30.0, gt=0)
+    max_input_tokens: int | None = Field(default=None, gt=0)
 
 
 class LLMConfig(_BaseProviderConfig):
@@ -165,6 +168,7 @@ class Settings(BaseModel):
                 "model": self.embedding.model,
                 "api_key": self.embedding.masked_key(),
                 "expected_dimensions": self.embedding.expected_dimensions,
+                "max_input_tokens": self.embedding.max_input_tokens,
             },
             "chunking": self.chunking.model_dump(),
             "retrieval": self.retrieval.model_dump(),
@@ -269,6 +273,7 @@ def load_settings(
                 expected_dimensions=_integer(merged, "EMBEDDING_DIMENSIONS"),
                 batch_size=_integer(merged, "EMBEDDING_BATCH_SIZE", 16),
                 requests_per_minute=_number(merged, "REQUESTS_PER_MINUTE", 30.0),
+                max_input_tokens=_integer(merged, "EMBEDDING_MAX_INPUT_TOKENS"),
             ),
             chunking=ChunkingConfig(
                 chunk_size_tokens=_integer(merged, "CHUNK_SIZE_TOKENS", 800),

@@ -33,6 +33,7 @@ class IndexSummary:
     pruned: int = 0
     vector_count: int = 0
     dimensions: int = 0
+    rejected_ids: list[str] = field(default_factory=list)
     failures: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -81,12 +82,14 @@ def index_chunks(
             else:
                 todo.append(chunk)
 
+    _reject_oversized_chunks(todo, embedding.max_input_tokens)
     batch = client.embed_passages([chunk.text for chunk in todo])
     rejected_indexes = {item.index for item in batch.rejected}
     accepted = [chunk for position, chunk in enumerate(todo) if position not in rejected_indexes]
     index.add(accepted, batch.vectors)
     summary.embedded = len(accepted)
     summary.rejected = len(batch.rejected)
+    summary.rejected_ids = [todo[item.index].chunk_id for item in batch.rejected]
     for item in batch.rejected:
         summary.warnings.append(f"{todo[item.index].chunk_id} was not embedded: {item.message}")
 
@@ -101,6 +104,27 @@ def index_chunks(
     )
     _write_manifest(paths, summary, embedding.model)
     return summary
+
+
+def _reject_oversized_chunks(todo: list[Chunk], max_input_tokens: int | None) -> None:
+    """Fail before any API call when chunks exceed the embedding input limit.
+
+    Endpoints either truncate overlong inputs silently or refuse them mid-run;
+    both poison retrieval, so the configured cap is enforced here first.
+    """
+    if max_input_tokens is None or not todo:
+        return
+    oversized = [chunk for chunk in todo if chunk.token_count > max_input_tokens]
+    if not oversized:
+        return
+    largest = max(oversized, key=lambda chunk: chunk.token_count)
+    examples = ", ".join(chunk.chunk_id for chunk in oversized[:5])
+    raise RetrievalError(
+        f"{len(oversized)} chunks exceed the embedding input limit of {max_input_tokens} "
+        f"tokens (largest: {largest.chunk_id} at {largest.token_count} tokens; "
+        f"examples: {examples}); cut smaller chunks or raise "
+        "RAGBENCH_EMBEDDING_MAX_INPUT_TOKENS if the endpoint accepts more"
+    )
 
 
 def read_index_manifest(paths: ProjectPaths, spec_name: str) -> dict[str, object]:
@@ -149,6 +173,7 @@ def _write_manifest(paths: ProjectPaths, summary: IndexSummary, embedding_model:
         "embedded_now": summary.embedded,
         "already_present": summary.skipped,
         "rejected": summary.rejected,
+        "rejected_ids": summary.rejected_ids,
         "pruned": summary.pruned,
         "updated_at": datetime.now(UTC).isoformat(),
     }
