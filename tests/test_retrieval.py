@@ -96,7 +96,10 @@ def chunked_document(
 def text_index(paths: Any, spec_name: str = "test-30-5", rebuild: bool = False, **config: Any):
     embedder = FakeEmbedder()
     summary = index_chunks(
-        paths, FakeEmbeddingClient(make_embedding_config(**config), embedder), spec_name, rebuild=rebuild
+        paths,
+        FakeEmbeddingClient(make_embedding_config(**config), embedder),
+        spec_name,
+        rebuild=rebuild,
     )
     return summary, embedder
 
@@ -232,7 +235,13 @@ def test_top_k_larger_than_the_index_returns_everything(paths) -> None:
 def test_search_without_an_index_fails_cleanly(paths) -> None:
     chunked_document(paths, ["Solar panels and inverters."])
     with pytest.raises(RetrievalError) as excinfo:
-        search_chunks(paths, FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()), "test-30-5", "solar", 5)
+        search_chunks(
+            paths,
+            FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+            "test-30-5",
+            "solar",
+            5,
+        )
     assert "no index for configuration" in str(excinfo.value)
 
 
@@ -242,7 +251,13 @@ def test_search_on_an_empty_index_fails_cleanly(paths) -> None:
     manifest_dir.mkdir(parents=True)
     (manifest_dir / "manifest.json").write_text(json.dumps({"spec": "test-30-5"}), encoding="utf-8")
     with pytest.raises(RetrievalError) as excinfo:
-        search_chunks(paths, FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()), "test-30-5", "solar", 5)
+        search_chunks(
+            paths,
+            FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+            "test-30-5",
+            "solar",
+            5,
+        )
     assert "empty" in str(excinfo.value)
 
 
@@ -273,7 +288,11 @@ def test_two_configurations_get_separate_indexes(paths) -> None:
     assert read_index_manifest(paths, "spec-a")["vector_count"] > 0
     assert read_index_manifest(paths, "spec-b")["vector_count"] > 0
     results_a = search_chunks(
-        paths, FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()), "spec-a", "solar panels", 5
+        paths,
+        FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+        "spec-a",
+        "solar panels",
+        5,
     )
     assert all(result.doc_id.startswith("report-") for result in results_a)
 
@@ -294,7 +313,9 @@ def test_rejected_chunks_are_reported_and_not_indexed(paths) -> None:
     embedder = FakeEmbedder(
         reject={"Wind turbines spin in the harbour and feed the grid all winter long."}
     )
-    summary = index_chunks(paths, FakeEmbeddingClient(make_embedding_config(), embedder), "test-30-5")
+    summary = index_chunks(
+        paths, FakeEmbeddingClient(make_embedding_config(), embedder), "test-30-5"
+    )
 
     assert summary.embedded == 1
     assert summary.rejected == 1

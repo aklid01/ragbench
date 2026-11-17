@@ -206,12 +206,8 @@ class GenerationMetrics:
         )
 
         citation_count = sum(len(record.citations) for record in scored)
-        cited_expected_count = sum(
-            len(record.cited_expected_references) for record in scored
-        )
-        self.citation_precision = (
-            cited_expected_count / citation_count if citation_count else None
-        )
+        cited_expected_count = sum(len(record.cited_expected_references) for record in scored)
+        self.citation_precision = cited_expected_count / citation_count if citation_count else None
         self.citation_recall = (
             sum(1 for record in scored if record.cited_expected_references) / len(scored)
             if scored

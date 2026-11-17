@@ -145,9 +145,7 @@ def test_multipage_documents_with_the_same_first_page_are_not_duplicates(
     assert summary.duplicates == []
 
 
-def test_content_duplicate_detection_covers_the_whole_document(
-    tmp_path: Path, paths
-) -> None:
+def test_content_duplicate_detection_covers_the_whole_document(tmp_path: Path, paths) -> None:
     source = tmp_path / "source"
     source.mkdir()
     write_pdf(

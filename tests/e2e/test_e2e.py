@@ -400,7 +400,9 @@ def test_ingest_json_without_chunking_reports_a_null_chunking_section(
     corpus = tmp_path / "corpus"
     _build_corpus(corpus)
 
-    assert main(["--root", str(root), "ingest", "--source", str(corpus), "--no-chunk", "--json"]) == 0
+    assert (
+        main(["--root", str(root), "ingest", "--source", str(corpus), "--no-chunk", "--json"]) == 0
+    )
     payload = json.loads(capsys.readouterr().out)
     assert len(payload["ingest"]["documents"]) == 3
     assert payload["chunking"] is None
