@@ -36,8 +36,8 @@ __all__ = [
 
 ENV_PREFIX = "RAGBENCH_"
 
-DEFAULT_LLM_BASE_URL = "http://127.0.0.1:3425/v1"
-DEFAULT_LLM_MODEL = "minimax-code-global/MiniMax-M3.1-Flash"
+DEFAULT_LLM_BASE_URL = "http://localhost:11434/v1"
+DEFAULT_LLM_MODEL = "llama3.1"
 DEFAULT_EMBEDDING_BASE_URL = "https://integrate.api.nvidia.com/v1"
 DEFAULT_EMBEDDING_MODEL = "nvidia/nemotron-3.5-embed-8b"
 

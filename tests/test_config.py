@@ -15,7 +15,7 @@ def test_defaults_are_used_when_nothing_is_set(settings) -> None:
     assert settings.chunking.chunk_overlap_tokens == 80
     assert settings.chunking.tokenizer_encoding == "cl100k_base"
     assert settings.retrieval.top_k == 5
-    assert settings.llm.base_url == "http://127.0.0.1:3425/v1"
+    assert settings.llm.base_url == "http://localhost:11434/v1"
     assert settings.embedding.base_url == "https://integrate.api.nvidia.com/v1"
 
 
