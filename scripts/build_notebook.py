@@ -26,8 +26,8 @@ re-run the notebook after new `ragbench evaluate` / `ragbench experiment`
 runs and the tables and plots update.
 
 A run file holds one record per evaluation case: the retrieved chunks, the
-answer, the citations and the per-case metrics. See `docs/EXPERIMENTS.md`
-for the metric definitions and the conclusions drawn from these numbers.""",
+answer, the citations and the per-case metrics. Metric definitions live in
+`src/ragbench/evaluation/metrics.py`.""",
     ),
     (
         "code",
