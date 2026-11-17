@@ -12,6 +12,7 @@ __all__ = [
     "RetrievalError",
     "GenerationError",
     "EvaluationError",
+    "ArtifactError",
 ]
 
 
@@ -53,3 +54,7 @@ class GenerationError(RagBenchError):
 
 class EvaluationError(RagBenchError):
     """Raised when an evaluation dataset or metric computation is invalid."""
+
+
+class ArtifactError(RagBenchError):
+    """Raised when a stored artefact is missing or unreadable."""

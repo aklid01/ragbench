@@ -8,6 +8,9 @@ is translated back to ``None`` on the way out.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
+
 from ..config import EmbeddingConfig
 from ..errors import RetrievalError
 from ..models import Chunk
@@ -88,21 +91,29 @@ class VectorIndex:
             return
         self._collection.upsert(
             ids=[chunk.chunk_id for chunk in chunks],
-            embeddings=vectors,
+            embeddings=cast(list[Sequence[float]], vectors),
             documents=[chunk.text for chunk in chunks],
-            metadatas=[self._metadata(chunk) for chunk in chunks],
+            metadatas=cast(list[Mapping[str, Any]], [self._metadata(chunk) for chunk in chunks]),
         )
 
-    def query(self, vector: list[float], top_k: int) -> list[dict[str, object]]:
+    def delete_ids(self, ids: list[str]) -> None:
+        """Remove vectors by chunk id, used to prune retired chunks."""
+        if ids:
+            self._collection.delete(ids=ids)
+
+    def query(self, vector: list[float], top_k: int) -> list[dict[str, Any]]:
         count = self._collection.count()
         if count == 0:
             return []
-        response = self._collection.query(
-            query_embeddings=[vector],
-            n_results=min(top_k, count),
-            include=["documents", "metadatas", "distances"],
+        response = cast(
+            "dict[str, list[Any]]",
+            self._collection.query(
+                query_embeddings=cast(list[Sequence[float]], [vector]),
+                n_results=min(top_k, count),
+                include=["documents", "metadatas", "distances"],
+            ),
         )
-        results: list[dict[str, object]] = []
+        results: list[dict[str, Any]] = []
         for chunk_id, document, metadata, distance in zip(
             response["ids"][0],
             response["documents"][0],

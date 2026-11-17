@@ -2,7 +2,7 @@
 
 from .indexer import IndexSummary, index_chunks, latest_indexed_spec, read_index_manifest
 from .search import RetrievedChunk, search_chunks
-from .store import VectorIndex
+from .vector_index import VectorIndex
 
 __all__ = [
     "IndexSummary",

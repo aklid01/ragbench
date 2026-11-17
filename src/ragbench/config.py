@@ -11,12 +11,13 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from pathlib import Path
+from typing import overload
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from .errors import ConfigError
-from .paths import ProjectPaths
+from .paths import ProjectPaths, find_project_root
 
 __all__ = [
     "ENV_PREFIX",
@@ -35,8 +36,8 @@ __all__ = [
 
 ENV_PREFIX = "RAGBENCH_"
 
-DEFAULT_LLM_BASE_URL = "http://127.0.0.1:3425/v1"
-DEFAULT_LLM_MODEL = "minimax-code-global/MiniMax-M3.1-Flash"
+DEFAULT_LLM_BASE_URL = "http://localhost:11434/v1"
+DEFAULT_LLM_MODEL = "llama3.1"
 DEFAULT_EMBEDDING_BASE_URL = "https://integrate.api.nvidia.com/v1"
 DEFAULT_EMBEDDING_MODEL = "nvidia/nemotron-3.5-embed-8b"
 
@@ -91,7 +92,9 @@ class EmbeddingConfig(_BaseProviderConfig):
 
     The two input types are optional and are only sent when set, for
     asymmetric models that require being told whether the input is a query
-    or a passage.
+    or a passage. ``max_input_tokens`` is the model's input length cap; when
+    set, indexing fails fast instead of trusting the endpoint to truncate
+    or refuse overlong chunks.
     """
 
     query_input_type: str | None = None
@@ -99,6 +102,7 @@ class EmbeddingConfig(_BaseProviderConfig):
     expected_dimensions: int | None = Field(default=None, gt=0)
     batch_size: int = Field(default=16, gt=0)
     requests_per_minute: float | None = Field(default=30.0, gt=0)
+    max_input_tokens: int | None = Field(default=None, gt=0)
 
 
 class LLMConfig(_BaseProviderConfig):
@@ -164,10 +168,19 @@ class Settings(BaseModel):
                 "model": self.embedding.model,
                 "api_key": self.embedding.masked_key(),
                 "expected_dimensions": self.embedding.expected_dimensions,
+                "max_input_tokens": self.embedding.max_input_tokens,
             },
             "chunking": self.chunking.model_dump(),
             "retrieval": self.retrieval.model_dump(),
         }
+
+
+@overload
+def _text(env: Mapping[str, str], name: str) -> str | None: ...
+
+
+@overload
+def _text(env: Mapping[str, str], name: str, default: str) -> str: ...
 
 
 def _text(env: Mapping[str, str], name: str, default: str | None = None) -> str | None:
@@ -178,6 +191,14 @@ def _text(env: Mapping[str, str], name: str, default: str | None = None) -> str 
     return value or default
 
 
+@overload
+def _number(env: Mapping[str, str], name: str) -> float | None: ...
+
+
+@overload
+def _number(env: Mapping[str, str], name: str, default: float) -> float: ...
+
+
 def _number(env: Mapping[str, str], name: str, default: float | None = None) -> float | None:
     raw = _text(env, name)
     if raw is None:
@@ -186,6 +207,14 @@ def _number(env: Mapping[str, str], name: str, default: float | None = None) -> 
         return float(raw)
     except ValueError as exc:
         raise ConfigError(f"{ENV_PREFIX}{name} must be a number, got {raw!r}") from exc
+
+
+@overload
+def _integer(env: Mapping[str, str], name: str) -> int | None: ...
+
+
+@overload
+def _integer(env: Mapping[str, str], name: str, default: int) -> int: ...
 
 
 def _integer(env: Mapping[str, str], name: str, default: int | None = None) -> int | None:
@@ -208,7 +237,7 @@ def load_settings(
     ``env`` overrides the process environment, which is how the tests inject
     configuration without touching the machine.
     """
-    resolved_root = root.resolve() if root else Path.cwd()
+    resolved_root = root.resolve() if root else find_project_root()
     merged: dict[str, str] = {}
     if use_env_file:
         merged.update(load_env_file(resolved_root / ".env"))
@@ -218,13 +247,12 @@ def load_settings(
 
     data_dir = _text(merged, "DATA_DIR", "data")
     artifacts_dir = _text(merged, "ARTIFACTS_DIR", "artifacts")
-    project_root = resolved_root if (resolved_root / "pyproject.toml").is_file() else resolved_root
     llm_key = _text(merged, "LLM_API_KEY")
     embedding_key = _text(merged, "EMBEDDING_API_KEY")
 
     try:
         settings = Settings(
-            root=project_root,
+            root=resolved_root,
             data_dir_name=data_dir,
             artifacts_dir_name=artifacts_dir,
             llm=LLMConfig(
@@ -245,6 +273,7 @@ def load_settings(
                 expected_dimensions=_integer(merged, "EMBEDDING_DIMENSIONS"),
                 batch_size=_integer(merged, "EMBEDDING_BATCH_SIZE", 16),
                 requests_per_minute=_number(merged, "REQUESTS_PER_MINUTE", 30.0),
+                max_input_tokens=_integer(merged, "EMBEDDING_MAX_INPUT_TOKENS"),
             ),
             chunking=ChunkingConfig(
                 chunk_size_tokens=_integer(merged, "CHUNK_SIZE_TOKENS", 800),

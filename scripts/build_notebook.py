@@ -26,8 +26,8 @@ re-run the notebook after new `ragbench evaluate` / `ragbench experiment`
 runs and the tables and plots update.
 
 A run file holds one record per evaluation case: the retrieved chunks, the
-answer, the citations and the per-case metrics. See `docs/EXPERIMENTS.md`
-for the metric definitions and the conclusions drawn from these numbers.""",
+answer, the citations and the per-case metrics. Metric definitions live in
+`src/ragbench/evaluation/metrics.py`.""",
     ),
     (
         "code",
@@ -67,8 +67,14 @@ for run_file in sorted(RUNS_DIR.glob("*.json")):
         "total_tokens": operational["total_tokens"],
     })
 
-runs = pd.DataFrame(rows).sort_values(["spec", "top_k"]).reset_index(drop=True)
-print(f"{len(runs)} runs loaded")
+runs = pd.DataFrame(rows)
+runs = runs.sort_values(
+    ["dataset_version", "embedding_model", "llm_model", "spec", "top_k"]
+).reset_index(drop=True)
+identities = runs[["dataset_version", "embedding_model", "llm_model"]].drop_duplicates()
+print(f"{len(runs)} runs loaded across {len(identities)} dataset/model identities")
+if len(identities) > 1:
+    print("warning: runs span several datasets or models; compare within one identity only")
 runs""",
     ),
     (

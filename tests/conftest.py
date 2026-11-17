@@ -13,6 +13,7 @@ import pytest
 from ragbench.chunking.tokenizer import get_counter
 from ragbench.config import load_settings
 from ragbench.paths import ProjectPaths
+from ragbench.retrieval.search import RetrievedChunk
 
 
 @pytest.fixture
@@ -82,6 +83,21 @@ def make_document(source_file: str = "report.pdf", pages: list[str] | None = Non
         ),
         pages=page_list,
         extractor="pymupdf",
+    )
+
+
+def make_chunk(rank: int, file_name: str, page_start: int | None, text: str) -> RetrievedChunk:
+    """Build one retrieved chunk with the provenance the pipeline would attach."""
+    return RetrievedChunk(
+        rank=rank,
+        chunk_id=f"{file_name}-chunk-{rank}",
+        doc_id=f"{file_name}-doc",
+        file_name=file_name,
+        page_start=page_start,
+        page_end=page_start,
+        text=text,
+        distance=0.2,
+        similarity=0.8,
     )
 
 

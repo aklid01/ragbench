@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from ..chunking.spec import PRESETS, ChunkingSpec, get_preset
 from ..errors import EvaluationError
 
-__all__ = ["ExperimentConfig", "DEFAULT_GRID", "default_grid", "resolve_chunking_spec"]
+__all__ = ["ExperimentConfig", "DEFAULT_GRID", "default_grid", "preset_spec"]
 
 
 class ExperimentConfig(BaseModel):
@@ -29,7 +29,7 @@ class ExperimentConfig(BaseModel):
         return f"{self.name} (chunking={self.spec_name}, top_k={self.top_k})"
 
 
-def resolve_chunking_spec(spec_name: str) -> ChunkingSpec:
+def preset_spec(spec_name: str) -> ChunkingSpec:
     """Resolve a preset name to its spec, raising a clear error otherwise."""
     try:
         return get_preset(spec_name)

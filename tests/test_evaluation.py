@@ -10,6 +10,7 @@ import pytest
 from conftest import make_answered_question
 from ragbench.errors import EvaluationError
 from ragbench.evaluation.dataset import load_eval_dataset
+from ragbench.evaluation.experiments import preset_spec
 
 
 def _write_dataset(path: Path, payload: dict) -> Path:
@@ -163,3 +164,9 @@ def test_unanswerable_case_is_never_scored_for_f1() -> None:
     assert record.token_f1 is None
     assert record.exact_match is None
     assert record.cited_expected is False
+
+
+def test_preset_spec_turns_an_unknown_preset_into_a_typed_error() -> None:
+    with pytest.raises(EvaluationError) as excinfo:
+        preset_spec("no-such-preset")
+    assert "unknown chunking preset" in str(excinfo.value)

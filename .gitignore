@@ -16,3 +16,4 @@ dist/
 build/
 *.egg-info/
 .ollama_serve.*.log
+scorecard.png

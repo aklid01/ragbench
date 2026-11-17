@@ -59,6 +59,23 @@ class FakeEmbedder:
         return hash_embedding(text, DIMENSIONS)
 
 
+class FakeEmbeddingClient:
+    """An EmbeddingClient substitute pairing a config with a fake embedder."""
+
+    def __init__(self, config: EmbeddingConfig, embedder: FakeEmbedder) -> None:
+        self.config = config
+        self._embedder = embedder
+
+    def embed_passages(self, texts: list[str]) -> EmbeddingBatch:
+        return self._embedder.embed_passages(texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embedder.embed_query(text)
+
+    def close(self) -> None:
+        pass
+
+
 def chunked_document(
     paths: Any,
     pages: list[str],
@@ -79,7 +96,10 @@ def chunked_document(
 def text_index(paths: Any, spec_name: str = "test-30-5", rebuild: bool = False, **config: Any):
     embedder = FakeEmbedder()
     summary = index_chunks(
-        paths, make_embedding_config(**config), embedder, spec_name, rebuild=rebuild
+        paths,
+        FakeEmbeddingClient(make_embedding_config(**config), embedder),
+        spec_name,
+        rebuild=rebuild,
     )
     return summary, embedder
 
@@ -161,8 +181,7 @@ def test_search_ranks_the_matching_chunk_first(paths) -> None:
     embedder = FakeEmbedder()
     results = search_chunks(
         paths,
-        make_embedding_config(),
-        embedder,
+        FakeEmbeddingClient(make_embedding_config(), embedder),
         "test-30-5",
         "Solar panels and inverters convert sunlight",
         top_k=2,
@@ -185,10 +204,14 @@ def test_search_reports_unavailable_pages_for_unpaginated_chunks(paths) -> None:
     object.__setattr__(document.pages[0], "page_number", None)
     write_document(paths, document)
     write_chunks(paths, spec.name, document.doc_id, chunk_document(document, spec, counter))
-    index_chunks(paths, make_embedding_config(), FakeEmbedder(), spec.name)
+    index_chunks(paths, FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()), spec.name)
 
     results = search_chunks(
-        paths, make_embedding_config(), FakeEmbedder(), spec.name, "geothermal heat pumps", 1
+        paths,
+        FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+        spec.name,
+        "geothermal heat pumps",
+        1,
     )
     assert results[0].page_start is None
     assert "page unavailable" in results[0].citation_label
@@ -200,7 +223,11 @@ def test_top_k_larger_than_the_index_returns_everything(paths) -> None:
     )
     text_index(paths)
     results = search_chunks(
-        paths, make_embedding_config(), FakeEmbedder(), "test-30-5", "solar panels", top_k=50
+        paths,
+        FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+        "test-30-5",
+        "solar panels",
+        top_k=50,
     )
     assert len(results) == len({result.chunk_id for result in results})
 
@@ -208,7 +235,13 @@ def test_top_k_larger_than_the_index_returns_everything(paths) -> None:
 def test_search_without_an_index_fails_cleanly(paths) -> None:
     chunked_document(paths, ["Solar panels and inverters."])
     with pytest.raises(RetrievalError) as excinfo:
-        search_chunks(paths, make_embedding_config(), FakeEmbedder(), "test-30-5", "solar", 5)
+        search_chunks(
+            paths,
+            FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+            "test-30-5",
+            "solar",
+            5,
+        )
     assert "no index for configuration" in str(excinfo.value)
 
 
@@ -218,7 +251,13 @@ def test_search_on_an_empty_index_fails_cleanly(paths) -> None:
     manifest_dir.mkdir(parents=True)
     (manifest_dir / "manifest.json").write_text(json.dumps({"spec": "test-30-5"}), encoding="utf-8")
     with pytest.raises(RetrievalError) as excinfo:
-        search_chunks(paths, make_embedding_config(), FakeEmbedder(), "test-30-5", "solar", 5)
+        search_chunks(
+            paths,
+            FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+            "test-30-5",
+            "solar",
+            5,
+        )
     assert "empty" in str(excinfo.value)
 
 
@@ -249,7 +288,11 @@ def test_two_configurations_get_separate_indexes(paths) -> None:
     assert read_index_manifest(paths, "spec-a")["vector_count"] > 0
     assert read_index_manifest(paths, "spec-b")["vector_count"] > 0
     results_a = search_chunks(
-        paths, make_embedding_config(), FakeEmbedder(), "spec-a", "solar panels", 5
+        paths,
+        FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+        "spec-a",
+        "solar panels",
+        5,
     )
     assert all(result.doc_id.startswith("report-") for result in results_a)
 
@@ -270,7 +313,9 @@ def test_rejected_chunks_are_reported_and_not_indexed(paths) -> None:
     embedder = FakeEmbedder(
         reject={"Wind turbines spin in the harbour and feed the grid all winter long."}
     )
-    summary = index_chunks(paths, make_embedding_config(), embedder, "test-30-5")
+    summary = index_chunks(
+        paths, FakeEmbeddingClient(make_embedding_config(), embedder), "test-30-5"
+    )
 
     assert summary.embedded == 1
     assert summary.rejected == 1
@@ -281,6 +326,41 @@ def test_rejected_chunks_are_reported_and_not_indexed(paths) -> None:
     assert manifest["rejected"] == 1
 
     results = search_chunks(
-        paths, make_embedding_config(), FakeEmbedder(), "test-30-5", "wind turbines", 5
+        paths,
+        FakeEmbeddingClient(make_embedding_config(), FakeEmbedder()),
+        "test-30-5",
+        "wind turbines",
+        5,
     )
     assert all("wind" not in result.text.lower() for result in results)
+
+
+def test_add_refuses_mismatched_chunk_and_vector_counts(paths) -> None:
+
+    chunked_document(paths, ["Solar panels and inverters convert sunlight."])
+    index = VectorIndex(paths, make_embedding_config(), "test-30-5")
+    document = make_document()
+    chunk = chunk_document(
+        document,
+        ChunkingSpec(name="test-30-5", chunk_size_tokens=30, chunk_overlap_tokens=5),
+        get_counter("cl100k_base"),
+    )[0]
+    with pytest.raises(RetrievalError) as excinfo:
+        index.add([chunk], [])
+    assert "refusing to index" in str(excinfo.value)
+
+
+def test_add_with_no_chunks_is_a_noop(paths) -> None:
+    index = VectorIndex(paths, make_embedding_config(), "test-30-5")
+    index.add([], [])
+    assert index.count() == 0
+
+
+def test_dimensions_of_an_empty_index_is_zero(paths) -> None:
+    index = VectorIndex(paths, make_embedding_config(), "test-30-5")
+    assert index.dimensions() == 0
+
+
+def test_query_on_an_empty_index_returns_nothing(paths) -> None:
+    index = VectorIndex(paths, make_embedding_config(), "test-30-5")
+    assert index.query([0.0] * DIMENSIONS, 5) == []

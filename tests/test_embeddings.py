@@ -20,6 +20,7 @@ def make_config(**overrides: object) -> EmbeddingConfig:
         "max_retries": 2,
         "retry_base_delay_seconds": 1.0,
         "expected_dimensions": 4,
+        "requests_per_minute": None,
     }
     values.update(overrides)
     return EmbeddingConfig(**values)  # type: ignore[arg-type]
@@ -222,6 +223,31 @@ def test_requests_are_spaced_according_to_the_rate_limit() -> None:
     client.close()
 
 
+def test_retries_are_spaced_by_the_rate_limit_too() -> None:
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            return httpx.Response(429, json={"error": "slow down"}, request=request)
+        return httpx.Response(
+            200, json={"data": [{"index": 0, "embedding": [1.0, 0.0, 0.0, 0.0]}]}, request=request
+        )
+
+    clock = iter([0.0, 0.0, 0.1, 0.1])
+    sleeps: list[float] = []
+    client = EmbeddingClient(
+        make_config(requests_per_minute=120.0, retry_base_delay_seconds=5.0),
+        transport=ok_transport(handler),
+        sleep=sleeps.append,
+        monotonic=lambda: next(clock),
+    )
+    client.embed_query("hello")
+    assert attempts["count"] == 2
+    assert sleeps == [5.0, 0.4]
+    client.close()
+
+
 def retry_after_handler(status: int, headers: dict[str, str], succeed_on: int | None = None):
     attempts = {"count": 0}
 
@@ -251,10 +277,10 @@ def test_retry_after_http_date_is_honored(monkeypatch: pytest.MonkeyPatch) -> No
     from datetime import UTC, datetime, timedelta
     from email.utils import format_datetime
 
-    import ragbench.embeddings.client as client_module
+    import ragbench.endpoint_client as endpoint_module
 
     frozen = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
-    monkeypatch.setattr(client_module, "_now_utc", lambda: frozen)
+    monkeypatch.setattr(endpoint_module, "now_utc", lambda: frozen)
     retry_at = format_datetime(frozen + timedelta(seconds=9))
 
     attempts, handler = retry_after_handler(503, {"Retry-After": retry_at}, succeed_on=2)
@@ -290,11 +316,11 @@ def test_past_retry_after_date_waits_nothing(monkeypatch: pytest.MonkeyPatch) ->
     from datetime import UTC, datetime, timedelta
     from email.utils import format_datetime
 
-    import ragbench.embeddings.client as client_module
+    import ragbench.endpoint_client as endpoint_module
 
     frozen = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
     past_date = format_datetime(frozen - timedelta(seconds=30))
-    monkeypatch.setattr(client_module, "_now_utc", lambda: frozen)
+    monkeypatch.setattr(endpoint_module, "now_utc", lambda: frozen)
 
     attempts, handler = retry_after_handler(429, {"Retry-After": past_date}, succeed_on=2)
     sleeps: list[float] = []

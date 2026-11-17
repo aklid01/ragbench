@@ -2,22 +2,8 @@
 
 from __future__ import annotations
 
+from conftest import make_chunk
 from ragbench.generation import LLMCompletion, build_answer
-from ragbench.retrieval.search import RetrievedChunk
-
-
-def make_chunk(rank: int, text: str) -> RetrievedChunk:
-    return RetrievedChunk(
-        rank=rank,
-        chunk_id=f"doc-chunk-{rank}",
-        doc_id="doc",
-        file_name="report.pdf",
-        page_start=1,
-        page_end=1,
-        text=text,
-        distance=0.2,
-        similarity=0.8,
-    )
 
 
 def make_completion(content: str, **overrides: object) -> LLMCompletion:
@@ -35,8 +21,8 @@ def make_completion(content: str, **overrides: object) -> LLMCompletion:
 
 
 RETRIEVED = [
-    make_chunk(1, "The company targets net zero emissions by 2040."),
-    make_chunk(2, "Water consumption fell by 18 percent in 2021."),
+    make_chunk(1, "report.pdf", 1, "The company targets net zero emissions by 2040."),
+    make_chunk(2, "report.pdf", 2, "Water consumption fell by 18 percent in 2021."),
 ]
 
 
@@ -84,8 +70,8 @@ def test_ungrounded_references_are_flagged_on_the_answer() -> None:
     assert result.invalid_references == [9]
 
 
-def test_a_missing_reported_model_falls_back_to_empty() -> None:
+def test_a_missing_reported_model_stays_none() -> None:
     completion = make_completion("answer [1]", model=None)
     result = build_answer("q", "spec", 1, RETRIEVED, completion, 0.0, "embed")
 
-    assert result.model == ""
+    assert result.model is None

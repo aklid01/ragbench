@@ -69,15 +69,15 @@ def _char_byte_map(text: str) -> list[int]:
     return offsets
 
 
-def _byte_to_char(map: list[int], offset: int, *, round_forward: bool) -> int:
+def _byte_to_char(char_byte: list[int], offset: int, *, round_forward: bool) -> int:
     """Character index for a byte offset, snapping outward at character edges.
 
     A byte offset that lands inside a multi byte character resolves to the
     character after it when a window starts there and the character before
     it when a window ends there, so slices never carry a partial character.
     """
-    index = bisect_right(map, offset) - 1
-    if map[index] == offset:
+    index = bisect_right(char_byte, offset) - 1
+    if char_byte[index] == offset:
         return index
     return index + 1 if round_forward else index
 

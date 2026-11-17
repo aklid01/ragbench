@@ -54,16 +54,16 @@ class SourceRef(BaseModel):
     byte_size: int
     ingested_at: datetime
 
-    def short(self) -> str:
-        return f"{self.file_name}"
-
 
 class Page(BaseModel):
     """One page of extracted text. Empty text means the page had nothing extractable."""
 
     page_number: int | None
     text: str
-    char_count: int = 0
+    char_count: int = Field(
+        default=0,
+        description="character count of the page text, computed from text when omitted or 0",
+    )
 
     def model_post_init(self, _context: object) -> None:
         if not self.char_count:
@@ -87,14 +87,6 @@ class ExtractedDocument(BaseModel):
     @property
     def char_count(self) -> int:
         return sum(page.char_count for page in self.pages)
-
-    @property
-    def text(self) -> str:
-        return "\n\n".join(page.text for page in self.pages if page.text.strip())
-
-    @property
-    def has_pages(self) -> bool:
-        return any(page.page_number is not None for page in self.pages)
 
 
 def citation_label_for(file_name: str, page_start: int | None, page_end: int | None) -> str:

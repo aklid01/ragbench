@@ -14,7 +14,14 @@ from .metrics import (
     recall_at_k,
 )
 from .records import CaseRecord, RetrievedRef
-from .runner import RunConfig, RunSummary, run_evaluation
+from .runner import (
+    RunConfig,
+    RunSummary,
+    list_run_files,
+    read_run_file,
+    run_evaluation,
+    write_run_file,
+)
 
 __all__ = [
     "DATASET_VERSION",
@@ -28,7 +35,10 @@ __all__ = [
     "RetrievedRef",
     "RunConfig",
     "RunSummary",
+    "list_run_files",
+    "read_run_file",
     "run_evaluation",
+    "write_run_file",
     "RetrievalMetrics",
     "GenerationMetrics",
     "OperationalMetrics",

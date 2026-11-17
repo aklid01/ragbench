@@ -9,9 +9,8 @@ Every rule is idempotent.
 from __future__ import annotations
 
 import re
-import unicodedata
 
-__all__ = ["normalize_text", "normalize_lines"]
+__all__ = ["normalize_text"]
 
 _LINE_ENDING = re.compile(r"\r\n|\r")
 _UNICODE_SPACE = re.compile(r"[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]")
@@ -33,14 +32,3 @@ def normalize_text(text: str) -> str:
     normalized = _BLANK_RUN.sub("\n\n", normalized)
     normalized = _BROKEN_WORD.sub("", normalized)
     return normalized.strip()
-
-
-def normalize_lines(text: str) -> list[str]:
-    """Normalise ``text`` and return it as non empty lines."""
-    return [line for line in normalize_text(text).split("\n") if line.strip()]
-
-
-def strip_accents(text: str) -> str:
-    """Remove combining marks. Used for keyword matching, never for display."""
-    decomposed = unicodedata.normalize("NFD", text)
-    return "".join(char for char in decomposed if not unicodedata.combining(char))

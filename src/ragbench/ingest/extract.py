@@ -15,7 +15,7 @@ from .normalize import normalize_text
 
 __all__ = ["ExtractionResult", "detect_media_type", "extract_document", "SUPPORTED_SUFFIXES"]
 
-SUPPORTED_SUFFIXES = {
+SUPPORTED_SUFFIXES: dict[str, MediaType] = {
     ".pdf": "pdf",
     ".txt": "text",
     ".text": "text",
@@ -72,7 +72,8 @@ def _extract_pdf(path: Path) -> ExtractionResult:
         result.title = str(metadata_title).strip()
         if document.page_count == 0:
             result.warnings.append("PDF contains no pages")
-        for index, page in enumerate(document):
+        for index in range(document.page_count):
+            page = document.load_page(index)
             try:
                 raw = page.get_text("text")
             except Exception as exc:
@@ -80,9 +81,27 @@ def _extract_pdf(path: Path) -> ExtractionResult:
                 result.warnings.append(f"page {index + 1} could not be read: {exc}")
             text = normalize_text(raw)
             result.pages.append(Page(page_number=index + 1, text=text, char_count=len(text)))
+    _warn_on_empty_pages(result)
     if not result.title:
         result.title = path.stem
     return result
+
+
+def _warn_on_empty_pages(result: ExtractionResult) -> None:
+    """Record the pages that extracted to nothing, so silent text loss surfaces.
+
+    A fully empty document is already reported by the ingest runner; this
+    covers the partial case, typically scanned pages inside a text PDF.
+    """
+    empty = [page.page_number for page in result.pages if page.char_count == 0]
+    if not empty or len(empty) == len(result.pages):
+        return
+    shown = ", ".join(str(number) for number in empty[:10])
+    more = " ..." if len(empty) > 10 else ""
+    result.warnings.append(
+        f"{len(empty)} of {len(result.pages)} pages contain no extractable text, "
+        f"likely scanned images (pages {shown}{more})"
+    )
 
 
 def _extract_plain(path: Path, extractor: str) -> ExtractionResult:

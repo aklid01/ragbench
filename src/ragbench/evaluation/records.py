@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from ..generation.citations import Citation
+from ..generation import Citation
 
 __all__ = ["RetrievedRef", "CaseRecord"]
 
@@ -52,6 +52,10 @@ class CaseRecord(BaseModel):
     cited_expected: bool = Field(
         default=False,
         description="a validated citation points at a chunk holding the expected passage",
+    )
+    cited_expected_references: list[int] = Field(
+        default_factory=list,
+        description="references of validated citations pointing at the expected passage",
     )
     faithfulness: float | None = Field(
         default=None,

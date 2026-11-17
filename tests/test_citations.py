@@ -2,23 +2,8 @@
 
 from __future__ import annotations
 
+from conftest import make_chunk
 from ragbench.generation import build_citations, extract_references
-from ragbench.retrieval.search import RetrievedChunk
-
-
-def make_chunk(rank: int, file_name: str, page_start: int | None, text: str) -> RetrievedChunk:
-    return RetrievedChunk(
-        rank=rank,
-        chunk_id=f"{file_name}-chunk-{rank}",
-        doc_id=f"{file_name}-doc",
-        file_name=file_name,
-        page_start=page_start,
-        page_end=page_start,
-        text=text,
-        distance=0.2,
-        similarity=0.8,
-    )
-
 
 RETRIEVED = [
     make_chunk(1, "report.pdf", 1, "The company targets net zero emissions by 2040."),

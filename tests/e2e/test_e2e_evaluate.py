@@ -8,10 +8,12 @@ numbers assert pipeline wiring, not model quality.
 from __future__ import annotations
 
 import json
+from datetime import datetime as real_datetime
 from pathlib import Path
 
 import pytest
 
+import ragbench.evaluation.runner as runner_module
 from conftest import write_pdf
 from fake_embeddings import FakeEmbeddingServer
 from fake_llm import FakeLLMServer
@@ -168,7 +170,9 @@ def test_evaluate_reports_llm_failure_as_case_error(
     payload = json.loads(capsys.readouterr().out)
     assert payload["operational"]["errors"] == 2
     assert all(record["error"] for record in payload["errors"]) or payload["errors"]
-    assert payload["retrieval"]["recall"]["3"] == 0.0
+    # Every case errored, so retrieval metrics are not computable, not zero.
+    assert payload["retrieval"]["recall"]["3"] is None
+    assert payload["retrieval"]["mrr"]["3"] is None
 
 
 def test_experiment_runs_a_grid_and_compare_prints_the_table(
@@ -236,3 +240,104 @@ def test_evaluate_without_a_dataset_fails_cleanly(
     exit_code = main(["--root", str(root), "evaluate"])
     assert exit_code == 1
     assert "no evaluation dataset" in capsys.readouterr().err
+
+
+def test_two_runs_in_one_second_do_not_overwrite(
+    tmp_path: Path, embeddings, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    root = _make_project(tmp_path)
+    _prepare(root, tmp_path, capsys)
+    dataset = _dataset(root, tmp_path)
+    llm = _wire_llm(monkeypatch, [ANSWER, "INSUFFICIENT_CONTEXT"])
+
+    class FrozenDatetime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 5, 1, 12, 0, 0, tzinfo=tz)
+
+    monkeypatch.setattr(runner_module, "datetime", FrozenDatetime)
+    try:
+        for _ in range(2):
+            assert (
+                main(
+                    [
+                        "--root",
+                        str(root),
+                        "evaluate",
+                        "--dataset",
+                        str(dataset),
+                        "--top-k",
+                        "3",
+                        "--json",
+                    ]
+                )
+                == 0
+            )
+            capsys.readouterr()
+    finally:
+        llm.stop()
+
+    run_files = sorted((root / "artifacts" / "experiments" / "runs").glob("*.json"))
+    ids = {json.loads(path.read_text(encoding="utf-8"))["summary"]["run_id"] for path in run_files}
+    assert ids == {"20260501-120000-custom-20-4-k3", "20260501-120000-custom-20-4-k3-2"}
+
+
+def test_experiment_skips_a_leftover_index_directory(
+    tmp_path: Path, embeddings, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    root = _make_project(tmp_path)
+    _prepare(root, tmp_path, capsys)
+    dataset = _dataset(root, tmp_path)
+    (root / "artifacts" / "index" / "ghost-spec").mkdir(parents=True, exist_ok=True)
+    llm = _wire_llm(monkeypatch, [ANSWER, "INSUFFICIENT_CONTEXT"])
+    try:
+        exit_code = main(
+            [
+                "--root",
+                str(root),
+                "experiment",
+                "--dataset",
+                str(dataset),
+                "--specs",
+                "custom-20-4,ghost-spec",
+                "--top-ks",
+                "3,5",
+            ]
+        )
+    finally:
+        llm.stop()
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert output.count("skipping") == 2
+    assert "2 runs saved" in output
+
+
+def test_abstention_is_detected_when_the_model_appends_prose(
+    tmp_path: Path, embeddings, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    root = _make_project(tmp_path)
+    _prepare(root, tmp_path, capsys)
+    dataset = _dataset(root, tmp_path)
+    llm = _wire_llm(
+        monkeypatch,
+        [
+            "INSUFFICIENT_CONTEXT.\nThe passages do not mention a target year.",
+            "The company targets 2040 [1]. The context is not INSUFFICIENT_CONTEXT.",
+        ],
+    )
+    try:
+        exit_code = main(
+            ["--root", str(root), "evaluate", "--dataset", str(dataset), "--top-k", "3", "--json"]
+        )
+    finally:
+        llm.stop()
+    assert exit_code == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    saved = json.loads(Path(payload["run_file"]).read_text(encoding="utf-8"))
+    answerable = next(record for record in saved["records"] if record["case_id"] == "q01")
+    unanswerable = next(record for record in saved["records"] if record["case_id"] == "q02")
+    assert answerable["abstained"] is True
+    assert answerable["citations"] == []
+    assert unanswerable["abstained"] is False
+    assert unanswerable["citations"]
