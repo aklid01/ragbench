@@ -18,6 +18,10 @@ __all__ = ["ABSTENTION_MARKER", "build_answer_prompt", "detect_abstention"]
 
 ABSTENTION_MARKER = "INSUFFICIENT_CONTEXT"
 
+# Characters models wrap the marker in: markdown emphasis, code spans, quotes,
+# bullet dashes and spacing.
+_MARKER_NOISE = "\"'*`_-• \t"
+
 SYSTEM_PROMPT = f"""\
 You answer questions strictly from the retrieved passages you are given.
 
@@ -48,13 +52,18 @@ def detect_abstention(content: str) -> bool:
     """True when the completion leads with the abstention marker.
 
     The first non-empty line decides. It must be the marker alone, modulo
-    surrounding whitespace, quotes and trailing punctuation, so a model that
-    explains itself on the following lines still counts as abstaining.
+    surrounding whitespace, quotes, markdown emphasis, bullet markers and
+    trailing punctuation, so a model that explains itself on the following
+    lines or wraps the marker in ``**bold**`` still counts as abstaining.
     Further words on the marker's own line count as an answer, and so does a
     marker buried inside a sentence.
     """
     for line in content.splitlines():
-        normalized = line.strip().strip("\"'").rstrip(" .!?;:,")
+        normalized = line.strip()
+        previous = ""
+        while normalized != previous:
+            previous = normalized
+            normalized = normalized.strip(_MARKER_NOISE).rstrip(" .!?;:,")
         if not normalized:
             continue
         return normalized.upper() == ABSTENTION_MARKER
