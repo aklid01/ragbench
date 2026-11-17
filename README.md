@@ -1,5 +1,7 @@
 # RAGBench
 
+[![CI](https://github.com/aklid01/ragbench/actions/workflows/ci.yml/badge.svg)](https://github.com/aklid01/ragbench/actions/workflows/ci.yml)
+
 A modular RAG evaluation workbench: document ingestion, chunking, embedding,
 vector retrieval, grounded answer generation with citations, and quantitative
 evaluation of retrieval and generation. No LLM framework is used; every stage
@@ -101,8 +103,9 @@ ragbench compare                                   # table of every saved run
 The pipeline works with any documents you ingest, but evaluation needs a
 dataset matched to your corpus: each case names the document and passage that
 must back the expected answer (see `ragbench/evaluation/dataset.py`). The
-bundled `data/eval/dataset.json` is a sample written for one example corpus;
-pass your own file with `--dataset`.
+bundled `data/eval/dataset.json` is a sample written against six public
+corporate ESG reports that are not part of this repository; pass your own
+file with `--dataset`.
 
 Evaluation runs are persisted as JSON with every answer, citation and
 retrieved chunk, so each metric can be audited by hand.
